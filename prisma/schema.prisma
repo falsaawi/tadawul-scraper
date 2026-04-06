@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ScrapeSession {
+  id         String        @id @default(cuid())
+  startedAt  DateTime      @default(now())
+  finishedAt DateTime?
+  status     String        @default("running") // running | completed | failed
+  error      String?
+  rowCount   Int           @default(0)
+  records    StockRecord[]
+
+  @@index([startedAt])
+  @@index([status])
+}
+
+model StockRecord {
+  id                 String        @id @default(cuid())
+  sessionId          String
+  session            ScrapeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  scrapedAt          DateTime      @default(now())
+
+  // Company
+  symbol             String
+  companyName        String
+
+  // 52 Weeks Range
+  week52High         Float?
+  week52Low          Float?
+
+  // Last Trade
+  lastTradePrice     Float?
+  lastTradeVolume    Int?
+  lastTradeChange    Float?
+  lastTradePctChange Float?
+
+  // Cumulative
+  numberOfTrades     Int?
+  cumulativeVolume   Int?
+
+  // Today's
+  todayOpen          Float?
+  todayHigh          Float?
+  todayLow           Float?
+
+  // Best Bid
+  bestBidPrice       Float?
+  bestBidQuantity    Int?
+
+  // Best Offer
+  bestOfferPrice     Float?
+  bestOfferQuantity  Int?
+
+  @@index([sessionId])
+  @@index([symbol, scrapedAt])
+  @@index([scrapedAt])
+}

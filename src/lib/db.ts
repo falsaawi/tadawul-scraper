@@ -1,35 +1,20 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-
-// Enable WebSocket for Neon serverless
-if (typeof globalThis.WebSocket === "undefined") {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    neonConfig.webSocketConstructor = require("ws");
-  } catch {
-    // ws not available, rely on native WebSocket
-  }
-}
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrismaClient() {
-  // Prefer unpooled URL for Prisma (supports transactions + no channel_binding issues)
+  // Prefer unpooled URL (no channel_binding issues)
   const connectionString =
-    process.env.DATABASE_URL_UNPOOLED ||
-    process.env.DATABASE_URL;
+    process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is not set");
   }
 
-  // Remove channel_binding parameter if present (incompatible with ws)
-  const cleanUrl = connectionString.replace(/[&?]channel_binding=[^&]*/g, "");
-
-  const pool = new Pool({ connectionString: cleanUrl });
-  // @ts-expect-error - Neon Pool types mismatch with Prisma adapter but works at runtime
-  const adapter = new PrismaNeon(pool);
+  const pool = new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  const adapter = new PrismaPg(pool);
 
   return new PrismaClient({ adapter });
 }

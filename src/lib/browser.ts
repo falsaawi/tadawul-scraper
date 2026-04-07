@@ -3,7 +3,7 @@ import type { Browser } from "puppeteer-core";
 // chromium-min downloads the browser binary from this CDN at runtime
 // Must match the installed @sparticuz/chromium-min version
 const CHROMIUM_CDN =
-  "https://github.com/nichochar/chromium/releases/download/v143.0.0/chromium-v143.0.0-pack.tar";
+  "https://github.com/Sparticuz/chromium/releases/download/v143.0.0/chromium-v143.0.0-pack.x64.tar";
 
 export async function getBrowser(): Promise<Browser> {
   const puppeteer = await import("puppeteer-core");

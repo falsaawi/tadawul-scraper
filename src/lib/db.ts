@@ -1,6 +1,12 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
-import { Pool } from "@neondatabase/serverless";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
+
+// Enable WebSocket for Neon serverless in Node.js environments
+if (typeof WebSocket === "undefined") {
+  neonConfig.webSocketConstructor = ws;
+}
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
@@ -12,7 +18,7 @@ function createPrismaClient() {
   }
 
   const pool = new Pool({ connectionString });
-  // @ts-expect-error - Pool types mismatch but works at runtime
+  // @ts-expect-error - Neon Pool types mismatch with Prisma adapter but works at runtime
   const adapter = new PrismaNeon(pool);
 
   return new PrismaClient({ adapter });

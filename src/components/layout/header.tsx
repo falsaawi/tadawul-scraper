@@ -69,6 +69,12 @@ export function Header() {
             >
               Data Explorer
             </Link>
+            <Link
+              href="/analytics"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Analytics
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">

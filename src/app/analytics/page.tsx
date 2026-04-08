@@ -106,7 +106,13 @@ export default function AnalyticsPage() {
           <MarketOverview
             topGainers={summary.topGainers}
             topLosers={summary.topLosers}
-            mostActive={summary.mostActive}
+            mostActiveByVolume={summary.mostActiveByVolume || []}
+            mostActiveByTrades={summary.mostActiveByTrades || []}
+            biggestSwings={summary.biggestSwings || []}
+            near52High={summary.near52High || []}
+            near52Low={summary.near52Low || []}
+            widestSpreads={summary.widestSpreads || []}
+            tightestSpreads={summary.tightestSpreads || []}
             marketStats={summary.marketStats}
             onSelectStock={handleSelectStock}
           />
@@ -153,15 +159,19 @@ export default function AnalyticsPage() {
             {summary && (
               <div>
                 <h2 className="text-lg font-semibold mb-4">Market Movers</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <MarketOverview
-                    topGainers={summary.topGainers}
-                    topLosers={summary.topLosers}
-                    mostActive={summary.mostActive}
-                    marketStats={summary.marketStats}
-                    onSelectStock={handleSelectStock}
-                  />
-                </div>
+                <MarketOverview
+                  topGainers={summary.topGainers}
+                  topLosers={summary.topLosers}
+                  mostActiveByVolume={summary.mostActiveByVolume || []}
+                  mostActiveByTrades={summary.mostActiveByTrades || []}
+                  biggestSwings={summary.biggestSwings || []}
+                  near52High={summary.near52High || []}
+                  near52Low={summary.near52Low || []}
+                  widestSpreads={summary.widestSpreads || []}
+                  tightestSpreads={summary.tightestSpreads || []}
+                  marketStats={summary.marketStats}
+                  onSelectStock={handleSelectStock}
+                />
               </div>
             )}
           </>

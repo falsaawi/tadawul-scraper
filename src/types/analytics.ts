@@ -36,9 +36,19 @@ export interface MarketMover {
   symbol: string;
   companyName: string;
   lastTradePrice: number | null;
+  lastTradeChange?: number | null;
   lastTradePctChange: number | null;
   cumulativeVolume: number | null;
   numberOfTrades: number | null;
+  todayOpen?: number | null;
+  todayHigh?: number | null;
+  todayLow?: number | null;
+  week52High?: number | null;
+  week52Low?: number | null;
+  swingPct?: number;
+  pctFrom52High?: number;
+  pctFrom52Low?: number;
+  spreadPct?: number;
 }
 
 export interface MarketStats {
@@ -48,6 +58,17 @@ export interface MarketStats {
   unchanged: number;
   totalVolume: number;
   totalTrades: number;
+  totalValue: number;
+  avgChange: number;
+  changeDist: {
+    up3: number;
+    up1to3: number;
+    up0to1: number;
+    flat: number;
+    down0to1: number;
+    down1to3: number;
+    down3: number;
+  };
 }
 
 export interface AnalyticsTimeSeriesResponse {
@@ -62,6 +83,12 @@ export interface AnalyticsSummaryResponse {
   stockList: Array<{ symbol: string; companyName: string }>;
   topGainers: MarketMover[];
   topLosers: MarketMover[];
-  mostActive: MarketMover[];
+  mostActiveByVolume: MarketMover[];
+  mostActiveByTrades: MarketMover[];
+  biggestSwings: MarketMover[];
+  near52High: MarketMover[];
+  near52Low: MarketMover[];
+  widestSpreads: MarketMover[];
+  tightestSpreads: MarketMover[];
   marketStats: MarketStats;
 }

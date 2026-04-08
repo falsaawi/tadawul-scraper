@@ -115,50 +115,128 @@ export async function GET(request: NextRequest) {
     const withChange = stocks.filter((s) => s.lastTradePctChange != null);
     const sorted = [...withChange].sort((a, b) => (b.lastTradePctChange ?? 0) - (a.lastTradePctChange ?? 0));
 
-    const topGainers = sorted.slice(0, 5).filter((s) => (s.lastTradePctChange ?? 0) > 0).map((s) => ({
+    const mapMover = (s: typeof stocks[0]) => ({
       symbol: s.symbol,
       companyName: s.companyName,
       lastTradePrice: s.lastTradePrice,
+      lastTradeChange: s.lastTradeChange,
       lastTradePctChange: s.lastTradePctChange,
       cumulativeVolume: s.cumulativeVolume,
       numberOfTrades: s.numberOfTrades,
-    }));
+      todayOpen: s.todayOpen,
+      todayHigh: s.todayHigh,
+      todayLow: s.todayLow,
+      week52High: s.week52High,
+      week52Low: s.week52Low,
+      bestBidPrice: s.bestBidPrice,
+      bestOfferPrice: s.bestOfferPrice,
+    });
 
-    const topLosers = sorted.slice(-5).reverse().filter((s) => (s.lastTradePctChange ?? 0) < 0).map((s) => ({
-      symbol: s.symbol,
-      companyName: s.companyName,
-      lastTradePrice: s.lastTradePrice,
-      lastTradePctChange: s.lastTradePctChange,
-      cumulativeVolume: s.cumulativeVolume,
-      numberOfTrades: s.numberOfTrades,
-    }));
+    // Top 10 gainers & losers
+    const topGainers = sorted.slice(0, 10).filter((s) => (s.lastTradePctChange ?? 0) > 0).map(mapMover);
+    const topLosers = sorted.slice(-10).reverse().filter((s) => (s.lastTradePctChange ?? 0) < 0).map(mapMover);
 
+    // Most active by volume
     const byVolume = [...stocks].sort((a, b) => (b.cumulativeVolume ?? 0) - (a.cumulativeVolume ?? 0));
-    const mostActive = byVolume.slice(0, 5).map((s) => ({
-      symbol: s.symbol,
-      companyName: s.companyName,
-      lastTradePrice: s.lastTradePrice,
-      lastTradePctChange: s.lastTradePctChange,
-      cumulativeVolume: s.cumulativeVolume,
-      numberOfTrades: s.numberOfTrades,
-    }));
+    const mostActiveByVolume = byVolume.slice(0, 10).map(mapMover);
 
+    // Most active by number of trades
+    const byTrades = [...stocks].sort((a, b) => (b.numberOfTrades ?? 0) - (a.numberOfTrades ?? 0));
+    const mostActiveByTrades = byTrades.slice(0, 10).map(mapMover);
+
+    // Biggest price swings (high - low range as % of price)
+    const withSwing = stocks
+      .filter((s) => s.todayHigh != null && s.todayLow != null && s.lastTradePrice != null && s.lastTradePrice > 0)
+      .map((s) => ({
+        ...s,
+        swingPct: ((s.todayHigh! - s.todayLow!) / s.lastTradePrice!) * 100,
+      }))
+      .sort((a, b) => b.swingPct - a.swingPct);
+    const biggestSwings = withSwing.slice(0, 10).map((s) => ({ ...mapMover(s), swingPct: s.swingPct }));
+
+    // Near 52-week high
+    const near52High = stocks
+      .filter((s) => s.week52High != null && s.lastTradePrice != null && s.week52High > 0)
+      .map((s) => ({
+        ...s,
+        pctFrom52High: ((s.lastTradePrice! - s.week52High!) / s.week52High!) * 100,
+      }))
+      .sort((a, b) => b.pctFrom52High - a.pctFrom52High)
+      .slice(0, 10)
+      .map((s) => ({ ...mapMover(s), pctFrom52High: s.pctFrom52High }));
+
+    // Near 52-week low
+    const near52Low = stocks
+      .filter((s) => s.week52Low != null && s.lastTradePrice != null && s.week52Low > 0)
+      .map((s) => ({
+        ...s,
+        pctFrom52Low: ((s.lastTradePrice! - s.week52Low!) / s.week52Low!) * 100,
+      }))
+      .sort((a, b) => a.pctFrom52Low - b.pctFrom52Low)
+      .slice(0, 10)
+      .map((s) => ({ ...mapMover(s), pctFrom52Low: s.pctFrom52Low }));
+
+    // Widest bid-ask spreads (least liquid)
+    const withSpread = stocks
+      .filter((s) => s.bestBidPrice != null && s.bestOfferPrice != null && s.bestBidPrice > 0)
+      .map((s) => {
+        const mid = (s.bestBidPrice! + s.bestOfferPrice!) / 2;
+        return { ...s, spreadPct: mid > 0 ? ((s.bestOfferPrice! - s.bestBidPrice!) / mid) * 100 : 0 };
+      })
+      .sort((a, b) => b.spreadPct - a.spreadPct);
+    const widestSpreads = withSpread.slice(0, 10).map((s) => ({ ...mapMover(s), spreadPct: s.spreadPct }));
+    const tightestSpreads = [...withSpread].reverse().slice(0, 10).map((s) => ({ ...mapMover(s), spreadPct: s.spreadPct }));
+
+    // Market stats
     let gainers = 0, losers = 0, unchanged = 0, totalVolume = 0, totalTrades = 0;
+    let totalValue = 0;
+    const changeDist = { up3: 0, up1to3: 0, up0to1: 0, flat: 0, down0to1: 0, down1to3: 0, down3: 0 };
+
     for (const s of stocks) {
-      if ((s.lastTradePctChange ?? 0) > 0) gainers++;
-      else if ((s.lastTradePctChange ?? 0) < 0) losers++;
+      const pct = s.lastTradePctChange ?? 0;
+      if (pct > 0) gainers++;
+      else if (pct < 0) losers++;
       else unchanged++;
       totalVolume += s.cumulativeVolume ?? 0;
       totalTrades += s.numberOfTrades ?? 0;
+      totalValue += (s.lastTradePrice ?? 0) * (s.cumulativeVolume ?? 0);
+
+      if (pct >= 3) changeDist.up3++;
+      else if (pct >= 1) changeDist.up1to3++;
+      else if (pct > 0) changeDist.up0to1++;
+      else if (pct === 0) changeDist.flat++;
+      else if (pct > -1) changeDist.down0to1++;
+      else if (pct > -3) changeDist.down1to3++;
+      else changeDist.down3++;
     }
+
+    // Average change across market
+    const allChanges = stocks.map((s) => s.lastTradePctChange ?? 0);
+    const avgChange = allChanges.length > 0 ? allChanges.reduce((a, b) => a + b, 0) / allChanges.length : 0;
 
     return NextResponse.json({
       date: dateStr,
       stockList,
       topGainers,
       topLosers,
-      mostActive,
-      marketStats: { totalStocks: stocks.length, gainers, losers, unchanged, totalVolume, totalTrades },
+      mostActiveByVolume,
+      mostActiveByTrades,
+      biggestSwings,
+      near52High,
+      near52Low,
+      widestSpreads,
+      tightestSpreads,
+      marketStats: {
+        totalStocks: stocks.length,
+        gainers,
+        losers,
+        unchanged,
+        totalVolume,
+        totalTrades,
+        totalValue,
+        avgChange,
+        changeDist,
+      },
     });
   }
 

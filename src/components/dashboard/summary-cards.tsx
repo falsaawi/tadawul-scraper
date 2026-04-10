@@ -56,8 +56,8 @@ export function SummaryCards() {
       title: "Stocks Tracked",
       value: summary.totalStocks || "0",
       icon: TrendingUp,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
     },
     {
       title: "Last Scrape",
@@ -69,15 +69,15 @@ export function SummaryCards() {
           })
         : "Never",
       icon: Clock,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
+      color: "text-orange-400",
+      bg: "bg-orange-500/10",
     },
     {
       title: "Scrapes Today",
       value: summary.totalScrapesToday,
       icon: RefreshCw,
-      color: "text-green-600",
-      bg: "bg-green-50",
+      color: "text-green-400",
+      bg: "bg-green-500/10",
     },
     {
       title: "Last Status",
@@ -87,32 +87,32 @@ export function SummaryCards() {
       icon: Database,
       color:
         summary.lastScrapeStatus === "completed"
-          ? "text-green-600"
+          ? "text-green-400"
           : summary.lastScrapeStatus === "failed"
-          ? "text-red-600"
-          : "text-yellow-600",
+          ? "text-red-400"
+          : "text-yellow-400",
       bg:
         summary.lastScrapeStatus === "completed"
-          ? "bg-green-50"
+          ? "bg-green-500/10"
           : summary.lastScrapeStatus === "failed"
-          ? "bg-red-50"
-          : "bg-yellow-50",
+          ? "bg-red-500/10"
+          : "bg-yellow-500/10",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {cards.map((card) => (
         <div
           key={card.title}
-          className="bg-white rounded-xl border p-5 flex items-center gap-4"
+          className="bg-card rounded-xl border border-border p-4 flex items-center gap-3"
         >
-          <div className={`${card.bg} p-3 rounded-lg`}>
-            <card.icon className={`h-5 w-5 ${card.color}`} />
+          <div className={`${card.bg} p-2.5 rounded-lg`}>
+            <card.icon className={`h-4 w-4 ${card.color}`} />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">{card.title}</p>
-            <p className="text-xl font-semibold">{card.value}</p>
+            <p className="text-xs text-muted-foreground">{card.title}</p>
+            <p className="text-lg font-semibold text-foreground">{card.value}</p>
           </div>
         </div>
       ))}

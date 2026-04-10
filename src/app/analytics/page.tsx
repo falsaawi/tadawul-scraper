@@ -25,83 +25,52 @@ export default function AnalyticsPage() {
   const [stockData, setStockData] = useState<AnalyticsTimeSeriesResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch market summary
   const fetchSummary = useCallback(async () => {
     try {
       const res = await fetch(`/api/analytics?date=${selectedDate}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSummary(data);
-      }
-    } catch {
-      // ignore
-    }
+      if (res.ok) setSummary(await res.json());
+    } catch { /* ignore */ }
   }, [selectedDate]);
 
-  // Fetch stock time-series
   const fetchStock = useCallback(async () => {
-    if (!selectedSymbol) {
-      setStockData(null);
-      return;
-    }
+    if (!selectedSymbol) { setStockData(null); return; }
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/analytics?symbol=${selectedSymbol}&date=${selectedDate}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setStockData(data);
-      } else {
-        setStockData(null);
-      }
-    } catch {
-      setStockData(null);
-    } finally {
-      setLoading(false);
-    }
+      const res = await fetch(`/api/analytics?symbol=${selectedSymbol}&date=${selectedDate}`);
+      if (res.ok) setStockData(await res.json());
+      else setStockData(null);
+    } catch { setStockData(null); }
+    finally { setLoading(false); }
   }, [selectedSymbol, selectedDate]);
 
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
-
-  useEffect(() => {
-    fetchStock();
-  }, [fetchStock]);
-
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
+  useEffect(() => { fetchStock(); }, [fetchStock]);
   useEffect(() => {
     setLoading(true);
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(t);
   }, [selectedDate]);
 
-  const handleSelectStock = (symbol: string) => {
-    setSelectedSymbol(symbol);
-  };
-
   return (
-    <div className="min-h-screen bg-secondary/30">
+    <div className="min-h-screen bg-background">
       <Header />
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-5">
         <div>
-          <h1 className="text-2xl font-bold">Stock Analytics</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Performance analysis and financial insights from scraped data
+          <h1 className="text-xl font-bold text-foreground">Analytics</h1>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            Performance analysis and financial insights
           </p>
         </div>
 
-        {/* Stock Selector */}
         <StockSelector
           stocks={summary?.stockList || []}
           selectedSymbol={selectedSymbol}
           selectedDate={selectedDate}
-          onSymbolChange={handleSelectStock}
+          onSymbolChange={setSelectedSymbol}
           onDateChange={setSelectedDate}
           snapshot={stockData?.snapshot}
         />
 
-        {/* Market Overview (when no stock selected) */}
         {!selectedSymbol && summary && (
           <MarketOverview
             topGainers={summary.topGainers}
@@ -114,51 +83,43 @@ export default function AnalyticsPage() {
             widestSpreads={summary.widestSpreads || []}
             tightestSpreads={summary.tightestSpreads || []}
             marketStats={summary.marketStats}
-            onSelectStock={handleSelectStock}
+            onSelectStock={setSelectedSymbol}
           />
         )}
 
-        {/* Stock Analysis (when stock selected) */}
         {selectedSymbol && loading && (
-          <div className="bg-white rounded-xl border p-12 text-center text-muted-foreground animate-pulse">
+          <div className="bg-card rounded-xl border border-border p-12 text-center text-muted-foreground animate-pulse">
             Loading analysis...
           </div>
         )}
 
         {selectedSymbol && !loading && !stockData && (
-          <div className="bg-white rounded-xl border p-12 text-center text-muted-foreground">
-            No data found for {selectedSymbol} on {selectedDate}. Try a different date.
+          <div className="bg-card rounded-xl border border-border p-12 text-center text-muted-foreground">
+            No data for {selectedSymbol} on {selectedDate}.
           </div>
         )}
 
         {selectedSymbol && stockData && !loading && (
           <>
-            {/* Charts */}
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 gap-5">
               <PriceChart data={stockData.timeSeries} snapshot={stockData.snapshot} />
               <VolumeChart data={stockData.timeSeries} />
             </div>
 
-            {/* Analysis Cards */}
             <div>
-              <h2 className="text-lg font-semibold mb-4">Financial Analysis</h2>
+              <h2 className="text-sm font-semibold text-foreground mb-3">Financial Analysis</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <IntradayCard snapshot={stockData.snapshot} />
-                <BidAskCard
-                  data={stockData.timeSeries}
-                  analysis={stockData.analysis}
-                  snapshot={stockData.snapshot}
-                />
+                <BidAskCard data={stockData.timeSeries} analysis={stockData.analysis} snapshot={stockData.snapshot} />
                 <VwapCard analysis={stockData.analysis} snapshot={stockData.snapshot} />
                 <VolatilityCard analysis={stockData.analysis} snapshot={stockData.snapshot} />
                 <Week52Card analysis={stockData.analysis} snapshot={stockData.snapshot} />
               </div>
             </div>
 
-            {/* Market movers always visible below stock analysis */}
             {summary && (
               <div>
-                <h2 className="text-lg font-semibold mb-4">Market Movers</h2>
+                <h2 className="text-sm font-semibold text-foreground mb-3">Market Movers</h2>
                 <MarketOverview
                   topGainers={summary.topGainers}
                   topLosers={summary.topLosers}
@@ -170,17 +131,16 @@ export default function AnalyticsPage() {
                   widestSpreads={summary.widestSpreads || []}
                   tightestSpreads={summary.tightestSpreads || []}
                   marketStats={summary.marketStats}
-                  onSelectStock={handleSelectStock}
+                  onSelectStock={setSelectedSymbol}
                 />
               </div>
             )}
           </>
         )}
 
-        {/* Empty state */}
         {!selectedSymbol && !summary && !loading && (
-          <div className="bg-white rounded-xl border p-12 text-center text-muted-foreground">
-            No data available. Go to the Dashboard and trigger a scrape first.
+          <div className="bg-card rounded-xl border border-border p-12 text-center text-muted-foreground">
+            No data available. Go to Dashboard and trigger a scrape first.
           </div>
         )}
       </main>

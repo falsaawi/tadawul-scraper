@@ -16,24 +16,25 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-secondary/30">
+    <div className="min-h-screen bg-background">
       <Header />
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Saudi Stock Exchange (Tadawul) market data scraper
-          </p>
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-5">
+        {/* Title + Controls row */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground text-xs mt-0.5">
+              Saudi Stock Exchange (Tadawul) market data
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <ScrapeTrigger onComplete={handleScrapeComplete} />
+            <div className="w-px h-6 bg-border" />
+            <ExportButtons />
+          </div>
         </div>
 
         <SummaryCards />
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <ScrapeTrigger onComplete={handleScrapeComplete} />
-          </div>
-          <ExportButtons />
-        </div>
 
         <MarketTable refreshKey={refreshKey} />
 

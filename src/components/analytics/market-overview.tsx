@@ -153,7 +153,7 @@ function DataCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="flex items-center gap-2 p-4 border-b bg-secondary/20">
         {icon}
         <h3 className="font-semibold text-sm">{title}</h3>
@@ -205,27 +205,27 @@ export function MarketOverview({
     <div className="space-y-6">
       {/* Summary stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <div className="bg-white rounded-xl border p-3 text-center">
+        <div className="bg-card rounded-xl border border-border p-3 text-center">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Stocks</div>
           <div className="text-xl font-bold">{marketStats.totalStocks}</div>
         </div>
-        <div className="bg-white rounded-xl border p-3 text-center">
+        <div className="bg-card rounded-xl border border-border p-3 text-center">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Gainers</div>
           <div className="text-xl font-bold text-green-600">{marketStats.gainers}</div>
         </div>
-        <div className="bg-white rounded-xl border p-3 text-center">
+        <div className="bg-card rounded-xl border border-border p-3 text-center">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Losers</div>
           <div className="text-xl font-bold text-red-600">{marketStats.losers}</div>
         </div>
-        <div className="bg-white rounded-xl border p-3 text-center">
+        <div className="bg-card rounded-xl border border-border p-3 text-center">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Unchanged</div>
           <div className="text-xl font-bold text-gray-400">{marketStats.unchanged}</div>
         </div>
-        <div className="bg-white rounded-xl border p-3 text-center">
+        <div className="bg-card rounded-xl border border-border p-3 text-center">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</div>
           <div className="text-xl font-bold">{fmtNum(marketStats.totalVolume)}</div>
         </div>
-        <div className="bg-white rounded-xl border p-3 text-center">
+        <div className="bg-card rounded-xl border border-border p-3 text-center">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Trades</div>
           <div className="text-xl font-bold">{fmtNum(marketStats.totalTrades)}</div>
         </div>
@@ -238,7 +238,7 @@ export function MarketOverview({
 
       {/* Market breadth bar + change distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center gap-2 mb-3">
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">Market Breadth</span>
@@ -254,7 +254,7 @@ export function MarketOverview({
             )}
             {marketStats.unchanged > 0 && (
               <div
-                className="bg-gray-300 flex items-center justify-center text-gray-600 text-[10px] font-medium"
+                className="bg-gray-500 flex items-center justify-center text-gray-300 text-[10px] font-medium"
                 style={{ width: `${(marketStats.unchanged / marketStats.totalStocks) * 100}%` }}
               >
                 {((marketStats.unchanged / marketStats.totalStocks) * 100).toFixed(0)}%
@@ -275,7 +275,7 @@ export function MarketOverview({
               <span className="text-green-600 font-medium">{marketStats.gainers} Advancing</span>
             </div>
             <div className="text-center">
-              <span className="inline-block w-2 h-2 rounded-full bg-gray-300 mr-1" />
+              <span className="inline-block w-2 h-2 rounded-full bg-gray-500 mr-1" />
               <span className="text-gray-500 font-medium">{marketStats.unchanged} Flat</span>
             </div>
             <div className="text-center">
@@ -297,7 +297,7 @@ export function MarketOverview({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center gap-2 mb-3">
             <Activity className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">Change Distribution</span>
@@ -318,7 +318,7 @@ export function MarketOverview({
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 bg-white rounded-xl border p-1">
+      <div className="flex gap-1 bg-card rounded-xl border border-border p-1">
         {TABS.map((tab) => (
           <button
             key={tab.key}

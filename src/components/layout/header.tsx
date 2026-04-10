@@ -49,44 +49,42 @@ export function Header() {
   }, []);
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <header className="border-b border-border bg-card sticky top-0 z-50">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            <span>Tadawul Scraper</span>
+          <Link href="/" className="flex items-center gap-2 font-bold text-lg text-foreground">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            <span>Tadawul</span>
           </Link>
-          <nav className="hidden sm:flex items-center gap-4">
+          <nav className="hidden sm:flex items-center gap-1">
             <Link
               href="/"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               Dashboard
             </Link>
             <Link
-              href="/data"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Data Explorer
-            </Link>
-            <Link
               href="/analytics"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               Analytics
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">Riyadh Time (AST)</div>
-            <div className="text-sm font-mono font-medium">{time}</div>
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Riyadh</div>
+            <div className="text-sm font-mono font-medium text-foreground">{time}</div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary text-sm">
-            <Activity
-              className={`h-3.5 w-3.5 ${status.isOpen ? "text-green-500" : "text-red-500"}`}
-            />
-            <span className="font-medium">{status.message}</span>
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
+              status.isOpen
+                ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                : "bg-red-500/10 text-red-400 border border-red-500/20"
+            }`}
+          >
+            <Activity className={`h-3 w-3 ${status.isOpen ? "text-green-400" : "text-red-400"}`} />
+            {status.message}
           </div>
         </div>
       </div>

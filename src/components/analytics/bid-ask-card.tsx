@@ -33,7 +33,7 @@ export function BidAskCard({ data, analysis, snapshot }: Props) {
   const rating = getLiquidityRating(analysis.avgBidAskSpreadPct);
 
   return (
-    <div className="bg-white rounded-xl border p-5">
+    <div className="bg-card rounded-xl border border-border p-5">
       <div className="flex items-center gap-2 mb-4">
         <ArrowLeftRight className="h-5 w-5 text-purple-600" />
         <h3 className="font-semibold text-sm">Bid-Ask Spread</h3>

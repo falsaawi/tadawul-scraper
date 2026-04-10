@@ -1,26 +1,24 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
+  --background: 222 47% 6%;
+  --foreground: 210 40% 92%;
+  --card: 222 47% 9%;
+  --card-foreground: 210 40% 92%;
+  --popover: 222 47% 9%;
+  --popover-foreground: 210 40% 92%;
   --primary: 142.1 76.2% 36.3%;
   --primary-foreground: 355.7 100% 97.3%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
+  --secondary: 215 25% 14%;
+  --secondary-foreground: 210 40% 85%;
+  --muted: 215 20% 13%;
+  --muted-foreground: 215 16% 56%;
+  --accent: 215 25% 16%;
+  --accent-foreground: 210 40% 90%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
+  --border: 215 20% 16%;
+  --input: 215 20% 18%;
   --ring: 142.1 76.2% 36.3%;
   --radius: 0.5rem;
   --success: 142.1 76.2% 36.3%;
@@ -65,4 +63,29 @@ body {
   * {
     border-color: hsl(var(--border));
   }
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Input/select dark styling */
+input, select, textarea {
+  background: hsl(var(--input));
+  color: hsl(var(--foreground));
+}
+input::placeholder {
+  color: hsl(var(--muted-foreground));
 }

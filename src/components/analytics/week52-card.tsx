@@ -35,7 +35,7 @@ export function Week52Card({ analysis, snapshot }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border p-5">
+    <div className="bg-card rounded-xl border border-border p-5">
       <div className="flex items-center gap-2 mb-4">
         <Compass className="h-5 w-5 text-cyan-600" />
         <h3 className="font-semibold text-sm">52-Week Position</h3>
@@ -44,7 +44,7 @@ export function Week52Card({ analysis, snapshot }: Props) {
       <div className="mb-4">
         <div className="text-center text-2xl font-bold mb-2">{position.toFixed(1)}%</div>
         {/* Range bar */}
-        <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
+        <div className="relative h-4 bg-accent rounded-full overflow-hidden">
           <div
             className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-400 via-yellow-300 to-green-400 rounded-full"
             style={{ width: "100%" }}

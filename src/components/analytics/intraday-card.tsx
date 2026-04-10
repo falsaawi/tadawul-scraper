@@ -19,7 +19,7 @@ export function IntradayCard({ snapshot }: { snapshot: StockSnapshot }) {
   ];
 
   return (
-    <div className="bg-white rounded-xl border p-5">
+    <div className="bg-card rounded-xl border border-border p-5">
       <div className="flex items-center gap-2 mb-4">
         <CandlestickChart className="h-5 w-5 text-indigo-600" />
         <h3 className="font-semibold text-sm">Intraday Movement</h3>
@@ -27,7 +27,7 @@ export function IntradayCard({ snapshot }: { snapshot: StockSnapshot }) {
 
       {/* Visual range bar */}
       <div className="mb-4">
-        <div className="relative h-8 bg-gray-100 rounded-full overflow-hidden">
+        <div className="relative h-8 bg-accent rounded-full overflow-hidden">
           <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-200 via-yellow-100 to-green-200 w-full rounded-full" />
           {/* Open marker */}
           <div className="absolute top-0 bottom-0 w-0.5 bg-indigo-500" style={{ left: `${openPct}%` }} />

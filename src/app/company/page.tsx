@@ -8,6 +8,7 @@ import { AnnouncementsCard } from "@/components/company/announcements-card";
 import { DividendsCard } from "@/components/company/dividends-card";
 import { BoardCard } from "@/components/company/board-card";
 import { CorporateActionsCard } from "@/components/company/corporate-actions-card";
+import { PriceHistoryChart } from "@/components/company/price-history-chart";
 
 interface CompanyData {
   id: string;
@@ -148,6 +149,8 @@ export default function CompanyPage() {
               scrapedAt={companyData.scrapedAt}
             />
 
+            <PriceHistoryChart symbol={companyData.symbol} />
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <AnnouncementsCard announcements={companyData.announcements} />
               <DividendsCard dividends={companyData.dividends} />
@@ -158,6 +161,11 @@ export default function CompanyPage() {
               <CorporateActionsCard actions={companyData.corporateActions} />
             </div>
           </>
+        )}
+
+        {/* Show price history even without profile data */}
+        {selectedSymbol && !companyData && !loading && (
+          <PriceHistoryChart symbol={selectedSymbol} />
         )}
       </main>
     </div>

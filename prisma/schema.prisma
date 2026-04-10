@@ -126,3 +126,22 @@ model CorporateAction {
 
   @@index([profileId])
 }
+
+model HistoricalPrice {
+  id        String @id @default(cuid())
+  symbol    String
+  date      String
+  open      Float?
+  high      Float?
+  low       Float?
+  close     Float?
+  change    Float?
+  changePct Float?
+  volume    BigInt?
+  value     Float?
+  trades    Int?
+
+  @@unique([symbol, date])
+  @@index([symbol])
+  @@index([date])
+}

@@ -61,3 +61,68 @@ model StockRecord {
   @@index([symbol, scrapedAt])
   @@index([scrapedAt])
 }
+
+model CompanyProfile {
+  id          String   @id @default(cuid())
+  symbol      String   @unique
+  companyName String
+  sector      String?
+  details     Json?
+  scrapedAt   DateTime @default(now())
+
+  announcements    Announcement[]
+  dividends        Dividend[]
+  boardMembers     BoardMember[]
+  corporateActions CorporateAction[]
+
+  @@index([sector])
+}
+
+model Announcement {
+  id        String         @id @default(cuid())
+  profileId String
+  profile   CompanyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title     String
+  date      String?
+  category  String?
+
+  @@index([profileId])
+}
+
+model Dividend {
+  id               String         @id @default(cuid())
+  profileId        String
+  profile          CompanyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  announcedDate    String?
+  eligibilityDate  String?
+  distributionDate String?
+  distributionWay  String?
+  dividendAmount   String?
+
+  @@index([profileId])
+}
+
+model BoardMember {
+  id           String         @id @default(cuid())
+  profileId    String
+  profile      CompanyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tradingDate  String?
+  shareholder  String?
+  designation  String?
+  sharesHeld   String?
+  sharesPrev   String?
+  sharesChange String?
+
+  @@index([profileId])
+}
+
+model CorporateAction {
+  id        String         @id @default(cuid())
+  profileId String
+  profile   CompanyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title     String
+  date      String?
+  details   String?
+
+  @@index([profileId])
+}

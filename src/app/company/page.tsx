@@ -9,6 +9,7 @@ import { DividendsCard } from "@/components/company/dividends-card";
 import { BoardCard } from "@/components/company/board-card";
 import { CorporateActionsCard } from "@/components/company/corporate-actions-card";
 import { PriceHistoryChart } from "@/components/company/price-history-chart";
+import { FinancialsCard } from "@/components/company/financials-card";
 import { IntradayCard } from "@/components/analytics/intraday-card";
 import { BidAskCard } from "@/components/analytics/bid-ask-card";
 import { VwapCard } from "@/components/analytics/vwap-card";
@@ -169,6 +170,8 @@ export default function CompanyPage() {
                 </div>
               </div>
             )}
+
+            <FinancialsCard symbol={companyData.symbol} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <AnnouncementsCard announcements={companyData.announcements} />

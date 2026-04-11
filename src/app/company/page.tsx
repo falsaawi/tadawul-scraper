@@ -10,6 +10,7 @@ import { BoardCard } from "@/components/company/board-card";
 import { CorporateActionsCard } from "@/components/company/corporate-actions-card";
 import { PriceHistoryChart } from "@/components/company/price-history-chart";
 import { FinancialsCard } from "@/components/company/financials-card";
+import { AssessmentCard } from "@/components/company/assessment-card";
 import { IntradayCard } from "@/components/analytics/intraday-card";
 import { BidAskCard } from "@/components/analytics/bid-ask-card";
 import { VwapCard } from "@/components/analytics/vwap-card";
@@ -154,6 +155,8 @@ export default function CompanyPage() {
               details={companyData.details as Record<string, string> | null}
               scrapedAt={companyData.scrapedAt}
             />
+
+            <AssessmentCard symbol={companyData.symbol} />
 
             <PriceHistoryChart symbol={companyData.symbol} />
 

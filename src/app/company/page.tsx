@@ -9,6 +9,12 @@ import { DividendsCard } from "@/components/company/dividends-card";
 import { BoardCard } from "@/components/company/board-card";
 import { CorporateActionsCard } from "@/components/company/corporate-actions-card";
 import { PriceHistoryChart } from "@/components/company/price-history-chart";
+import { IntradayCard } from "@/components/analytics/intraday-card";
+import { BidAskCard } from "@/components/analytics/bid-ask-card";
+import { VwapCard } from "@/components/analytics/vwap-card";
+import { VolatilityCard } from "@/components/analytics/volatility-card";
+import { Week52Card } from "@/components/analytics/week52-card";
+import type { AnalyticsTimeSeriesResponse } from "@/types/analytics";
 
 interface CompanyData {
   id: string;
@@ -28,12 +34,12 @@ export default function CompanyPage() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedSector, setSelectedSector] = useState("");
   const [companyData, setCompanyData] = useState<CompanyData | null>(null);
+  const [stockAnalytics, setStockAnalytics] = useState<AnalyticsTimeSeriesResponse | null>(null);
   const [scraping, setScraping] = useState(false);
   const [scrapeMsg, setScrapeMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [profiledSymbols, setProfiledSymbols] = useState<Set<string>>(new Set());
 
-  // Fetch stock list
   useEffect(() => {
     async function fetchList() {
       try {
@@ -47,18 +53,19 @@ export default function CompanyPage() {
     fetchList();
   }, []);
 
-  // Fetch company data when symbol changes
   const fetchCompany = useCallback(async () => {
-    if (!selectedSymbol) { setCompanyData(null); return; }
+    if (!selectedSymbol) { setCompanyData(null); setStockAnalytics(null); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/company?symbol=${selectedSymbol}`);
-      if (res.ok) {
-        setCompanyData(await res.json());
-      } else {
-        setCompanyData(null);
-      }
-    } catch { setCompanyData(null); }
+      const [profileRes, analyticsRes] = await Promise.all([
+        fetch(`/api/company?symbol=${selectedSymbol}`),
+        fetch(`/api/analytics?symbol=${selectedSymbol}`),
+      ]);
+      if (profileRes.ok) setCompanyData(await profileRes.json());
+      else setCompanyData(null);
+      if (analyticsRes.ok) setStockAnalytics(await analyticsRes.json());
+      else setStockAnalytics(null);
+    } catch { setCompanyData(null); setStockAnalytics(null); }
     finally { setLoading(false); }
   }, [selectedSymbol]);
 
@@ -85,9 +92,7 @@ export default function CompanyPage() {
     }
   }
 
-  const filteredStocks = selectedSector
-    ? stocks // TODO: filter by sector when sector data is available per stock
-    : stocks;
+  const filteredStocks = selectedSector ? stocks : stocks;
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,7 +101,7 @@ export default function CompanyPage() {
         <div>
           <h1 className="text-xl font-bold text-foreground">Company Profile</h1>
           <p className="text-muted-foreground text-xs mt-0.5">
-            Detailed company information, announcements, dividends, and board data
+            Detailed company information, financial analysis, and historical data
           </p>
         </div>
 
@@ -119,9 +124,9 @@ export default function CompanyPage() {
 
         {!selectedSymbol && (
           <div className="bg-card rounded-xl border border-border p-12 text-center">
-            <p className="text-muted-foreground text-sm">Select a company and click &quot;Scrape Profile&quot; to load its data.</p>
+            <p className="text-muted-foreground text-sm">Select a company to view its profile and analysis.</p>
             {profiledSymbols.size > 0 && (
-              <p className="text-xs text-muted-foreground mt-2">{profiledSymbols.size} companies profiled so far</p>
+              <p className="text-xs text-muted-foreground mt-2">{profiledSymbols.size} companies profiled</p>
             )}
           </div>
         )}
@@ -151,6 +156,20 @@ export default function CompanyPage() {
 
             <PriceHistoryChart symbol={companyData.symbol} />
 
+            {/* Financial Analysis */}
+            {stockAnalytics && (
+              <div>
+                <h2 className="text-sm font-semibold text-foreground mb-3">Financial Analysis</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <IntradayCard snapshot={stockAnalytics.snapshot} />
+                  <BidAskCard data={stockAnalytics.timeSeries} analysis={stockAnalytics.analysis} snapshot={stockAnalytics.snapshot} />
+                  <VwapCard analysis={stockAnalytics.analysis} snapshot={stockAnalytics.snapshot} />
+                  <VolatilityCard analysis={stockAnalytics.analysis} snapshot={stockAnalytics.snapshot} />
+                  <Week52Card analysis={stockAnalytics.analysis} snapshot={stockAnalytics.snapshot} />
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <AnnouncementsCard announcements={companyData.announcements} />
               <DividendsCard dividends={companyData.dividends} />
@@ -163,7 +182,6 @@ export default function CompanyPage() {
           </>
         )}
 
-        {/* Show price history even without profile data */}
         {selectedSymbol && !companyData && !loading && (
           <PriceHistoryChart symbol={selectedSymbol} />
         )}

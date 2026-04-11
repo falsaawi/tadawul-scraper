@@ -79,12 +79,67 @@ function computeAnalysis(records: Array<{
   };
 }
 
+const SECTOR_MAP: Record<string, string[]> = {
+  "Energy": ["2030","2222","2380","2381","2382","4030"],
+  "Materials": ["1201","1202","1210","1211","1301","1304","1320","1321","1322","1323","1324","2001","2010","2020","2060","2090","2150","2170","2180","2200","2210","2220","2223","2240","2250","2290","2300","2310","2330","2350","2360","3002","3003","3004","3005","3007","3008","3010","3020","3030","3040","3050","3060","3080","3090","3091","3092","4143"],
+  "Capital Goods": ["1212","1214","1302","1303","2040","2110","2160","2320","2370","4110","4140","4141","4142","4144","4145","4146","4147","4148"],
+  "Banks": ["1010","1020","1030","1050","1060","1080","1120","1140","1150","1180"],
+  "Financial Services": ["1111","1182","1183","2120","4081","4082","4083","4084","4130","4280"],
+  "Insurance": ["8010","8012","8020","8030","8040","8050","8060","8070","8100","8120","8150","8160","8170","8180","8190","8200","8210","8230","8240","8250","8260","8280","8300","8310","8311","8313"],
+  "Telecommunication Services": ["7010","7020","7030","7040"],
+  "Utilities": ["2080","2081","2082","2083","2084","5110"],
+  "REITs": ["4330","4331","4332","4333","4334","4335","4336","4337","4338","4339","4340","4342","4344","4345","4346","4347","4348","4349","4350"],
+  "Real Estate Mgmt & Dev't": ["4020","4090","4100","4150","4220","4230","4250","4300","4310","4320","4321","4322","4323","4324","4325","4326","4327"],
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
+  const sector = searchParams.get("sector");
   const dateStr = searchParams.get("date") || new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
 
   const { start, end } = getRiyadhDayRange(dateStr);
+
+  // SECTOR TIME-SERIES MODE
+  if (sector) {
+    const sectorSymbols = SECTOR_MAP[sector];
+    if (!sectorSymbols) {
+      return NextResponse.json({ error: "Unknown sector" }, { status: 400 });
+    }
+
+    // Get all scrape sessions for the date, aggregate by session time
+    const records = await prisma.stockRecord.findMany({
+      where: {
+        symbol: { in: sectorSymbols },
+        scrapedAt: { gte: start, lt: end },
+      },
+      orderBy: { scrapedAt: "asc" },
+      include: { session: { select: { startedAt: true } } },
+    });
+
+    // Group by session and compute sector averages
+    const bySession = new Map<string, typeof records>();
+    for (const r of records) {
+      const key = r.session.startedAt.toISOString();
+      if (!bySession.has(key)) bySession.set(key, []);
+      bySession.get(key)!.push(r);
+    }
+
+    const timeSeries = Array.from(bySession.entries()).map(([time, recs]) => {
+      const prices = recs.map(r => r.lastTradePrice).filter((p): p is number => p != null);
+      const volumes = recs.map(r => r.cumulativeVolume).filter((v): v is number => v != null);
+      const changes = recs.map(r => r.lastTradePctChange).filter((c): c is number => c != null);
+      return {
+        scrapedAt: time,
+        avgPrice: prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : null,
+        totalVolume: volumes.length > 0 ? volumes.reduce((a, b) => a + b, 0) : null,
+        avgChange: changes.length > 0 ? changes.reduce((a, b) => a + b, 0) / changes.length : null,
+        stockCount: recs.length,
+      };
+    });
+
+    return NextResponse.json({ sector, date: dateStr, timeSeries });
+  }
 
   // SUMMARY MODE — no symbol provided
   if (!symbol) {
@@ -241,7 +296,7 @@ export async function GET(request: NextRequest) {
   }
 
   // TIME-SERIES MODE — symbol provided
-  const records = await prisma.stockRecord.findMany({
+  let records = await prisma.stockRecord.findMany({
     where: {
       symbol,
       scrapedAt: { gte: start, lt: end },
@@ -249,8 +304,22 @@ export async function GET(request: NextRequest) {
     orderBy: { scrapedAt: "asc" },
   });
 
+  // Fallback: if no data for selected date, use latest available session
   if (records.length === 0) {
-    return NextResponse.json({ error: "No data found for this stock on the selected date" }, { status: 404 });
+    const lastSession = await prisma.scrapeSession.findFirst({
+      where: { status: "completed" },
+      orderBy: { startedAt: "desc" },
+    });
+    if (lastSession) {
+      records = await prisma.stockRecord.findMany({
+        where: { symbol, sessionId: lastSession.id },
+        orderBy: { scrapedAt: "asc" },
+      });
+    }
+  }
+
+  if (records.length === 0) {
+    return NextResponse.json({ error: "No data found for this stock" }, { status: 404 });
   }
 
   const last = records[records.length - 1];

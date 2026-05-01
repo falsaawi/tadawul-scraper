@@ -1,0 +1,23 @@
+CHIEF COMPLAINT: Chest pain and shortness of breath.
+
+HPI: 62-year-old male with a history of hypertension and type 2 diabetes mellitus
+presents to the ED with substernal chest pain radiating to the left arm, onset
+2 hours prior to arrival. Associated with diaphoresis and nausea. No prior
+history of MI. Patient denies fever, cough, or recent travel.
+
+PMH:
+- Essential hypertension, controlled on lisinopril
+- Type 2 diabetes mellitus without complications, on metformin
+- Hyperlipidemia
+
+ASSESSMENT:
+1. Acute ST-elevation myocardial infarction of anterior wall - confirmed by
+   ECG showing ST elevation in leads V1-V4 and elevated troponin.
+2. Type 2 diabetes mellitus, without complications.
+3. Essential hypertension, well controlled.
+
+PLAN:
+- Emergent cardiac catheterization performed; drug-eluting stent placed in
+  the proximal LAD.
+- Continue metformin and lisinopril.
+- Start dual antiplatelet therapy.

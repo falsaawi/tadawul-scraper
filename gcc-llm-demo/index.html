@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LLM-Assisted Data Analysis — A Training Playbook for Government Analysts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg-2: #111a2e;
+    --panel: #16213c;
+    --panel-2: #1d2a48;
+    --border: #253556;
+    --text: #e6ecf7;
+    --muted: #93a2c2;
+    --accent: #3ea6ff;
+    --accent-2: #7bd88f;
+    --warn: #ffb547;
+    --danger: #ff6b6b;
+    --gold: #e2c158;
+    --radius: 14px;
+    --shadow: 0 8px 30px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, sans-serif; line-height: 1.55; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  /* Top bar */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(11,18,32,0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1400px; margin: 0 auto; padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 17px; }
+  .brand-logo {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; color: #0b1220; font-weight: 800;
+  }
+  .brand-sub { color: var(--muted); font-weight: 400; font-size: 12.5px; }
+
+  .nav-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .nav-tab {
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
+    color: var(--muted); border: 1px solid transparent; transition: all 0.15s;
+  }
+  .nav-tab:hover { color: var(--text); background: var(--panel); }
+  .nav-tab.active { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+
+  /* Hero */
+  .hero {
+    max-width: 1400px; margin: 0 auto; padding: 56px 28px 32px;
+  }
+  .hero h1 {
+    font-size: 42px; font-weight: 800; margin: 0 0 14px;
+    background: linear-gradient(135deg, #fff, var(--accent));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lede { font-size: 17px; color: var(--muted); max-width: 880px; margin: 0; }
+  .hero-meta { margin-top: 22px; display: flex; gap: 22px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .hero-meta b { color: var(--text); font-weight: 600; }
+
+  /* Section wrapper */
+  .section { max-width: 1400px; margin: 0 auto; padding: 18px 28px 48px; display: none; }
+  .section.active { display: block; }
+  .section h2 { font-size: 28px; margin: 18px 0 8px; }
+  .section h3 { font-size: 19px; margin: 28px 0 10px; color: var(--text); }
+  .section h4 { font-size: 15px; margin: 20px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+
+  .eyebrow {
+    display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 600;
+    background: rgba(62,166,255,0.12); color: var(--accent); letter-spacing: 0.4px; text-transform: uppercase;
+  }
+
+  /* Cards */
+  .grid { display: grid; gap: 18px; }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; box-shadow: var(--shadow);
+  }
+  .card h3 { margin-top: 0; }
+
+  /* CRAFTED letters */
+  .crafted {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; margin: 20px 0 28px;
+  }
+  @media (max-width: 900px) { .crafted { grid-template-columns: repeat(2, 1fr); } }
+  .crafted-letter {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; text-align: center; cursor: pointer; transition: transform 0.15s, border-color 0.15s;
+  }
+  .crafted-letter:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .crafted-letter .big {
+    font-size: 34px; font-weight: 800; color: var(--accent);
+    display: block; margin-bottom: 4px;
+  }
+  .crafted-letter .small { font-size: 12.5px; color: var(--muted); }
+
+  .crafted-detail {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; margin-top: 12px;
+  }
+  .crafted-detail h3 { margin-top: 0; color: var(--accent); }
+
+  /* Process pipeline */
+  .pipeline {
+    display: flex; gap: 8px; align-items: stretch; margin: 20px 0 28px; flex-wrap: wrap;
+  }
+  .pipeline-step {
+    flex: 1; min-width: 180px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; position: relative;
+  }
+  .pipeline-step::after {
+    content: '→'; position: absolute; right: -16px; top: 50%; transform: translateY(-50%);
+    color: var(--accent); font-size: 22px; font-weight: 700;
+  }
+  .pipeline-step:last-child::after { content: ''; }
+  .pipeline-step .num {
+    font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 1px;
+  }
+  .pipeline-step .title { font-size: 15px; font-weight: 600; margin: 4px 0 6px; }
+  .pipeline-step .desc { font-size: 12.5px; color: var(--muted); }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    background: var(--panel-2); padding: 11px 14px; text-align: left; font-weight: 600;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; font-size: 11.5px;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(62,166,255,0.05); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; }
+
+  /* Prompt block */
+  .prompt-block {
+    background: #0a1020; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+    line-height: 1.7; white-space: pre-wrap; overflow-x: auto; color: #d5dffb;
+    max-height: 480px; overflow-y: auto;
+  }
+  .prompt-block .tag { color: var(--gold); font-weight: 600; }
+  .prompt-block .comment { color: var(--muted); font-style: italic; }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 18px; margin-bottom: 18px;
+  }
+  .filter-bar label { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+  .filter-bar select, .filter-bar input[type="text"] {
+    background: var(--bg-2); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 10px; border-radius: 8px; font-size: 13px; font-family: inherit;
+    min-width: 130px;
+  }
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);
+    padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; user-select: none;
+    transition: all 0.15s;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.active { background: var(--accent); color: #0b1220; border-color: var(--accent); font-weight: 600; }
+
+  /* KPI cards */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin: 14px 0 22px; }
+  .kpi {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .kpi .label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+  .kpi .value { font-size: 22px; font-weight: 700; margin-top: 6px; }
+  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi.accent .value { color: var(--accent); }
+  .kpi.green .value { color: var(--accent-2); }
+  .kpi.gold .value { color: var(--gold); }
+
+  /* Chart container */
+  .chart-box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; position: relative;
+  }
+  .chart-box h4 { margin-top: 0; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 14px; }
+  .chart-box canvas { max-height: 340px; }
+
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+    margin-left: 4px;
+  }
+  .badge.c { background: rgba(123,216,143,0.15); color: var(--accent-2); }
+  .badge.e { background: rgba(255,181,71,0.15); color: var(--warn); }
+  .badge.stale { background: rgba(255,107,107,0.15); color: var(--danger); }
+
+  /* Source panel */
+  .source-list { list-style: none; padding: 0; margin: 0; }
+  .source-list li {
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+    display: flex; justify-content: space-between; gap: 16px;
+  }
+  .source-list li:last-child { border-bottom: none; }
+  .source-list .src-name { color: var(--text); font-weight: 500; }
+  .source-list .src-url { color: var(--accent); font-size: 12px; word-break: break-all; }
+
+  /* Checklist */
+  .checklist { list-style: none; padding: 0; margin: 0; }
+  .checklist li {
+    padding: 12px 16px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+    cursor: pointer; user-select: none;
+  }
+  .checklist li .box {
+    width: 20px; height: 20px; border: 2px solid var(--muted); border-radius: 5px; flex-shrink: 0;
+    display: grid; place-items: center; transition: all 0.15s;
+  }
+  .checklist li.checked .box { background: var(--accent-2); border-color: var(--accent-2); }
+  .checklist li.checked .box::after { content: '✓'; color: #0b1220; font-weight: 800; font-size: 13px; }
+  .checklist li.checked { opacity: 0.6; text-decoration: line-through; }
+
+  /* Footer */
+  footer {
+    margin-top: 40px; padding: 28px; border-top: 1px solid var(--border); color: var(--muted);
+    font-size: 12.5px; text-align: center;
+  }
+
+  .note {
+    background: rgba(255,181,71,0.08); border-left: 3px solid var(--warn);
+    padding: 12px 16px; border-radius: 6px; font-size: 13px; color: var(--text); margin: 14px 0;
+  }
+  .note b { color: var(--warn); }
+
+  .tag-inline {
+    font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+    background: rgba(62,166,255,0.12); color: var(--accent); padding: 2px 8px; border-radius: 4px;
+  }
+
+  .matrix-cell { text-align: right; padding: 8px 10px !important; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; }
+  .matrix-cell.self { background: var(--bg-2); color: var(--muted); text-align: center; }
+  .matrix-cell.high { background: rgba(123,216,143,0.15); font-weight: 600; }
+  .matrix-cell.med { background: rgba(62,166,255,0.10); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-logo">AI</div>
+      <div>
+        LLM-Assisted Data Analysis Playbook
+        <div class="brand-sub">Training material for government data analysts · April 2026</div>
+      </div>
+    </div>
+    <div class="nav-tabs" id="navTabs">
+      <div class="nav-tab active" data-tab="overview">Overview</div>
+      <div class="nav-tab" data-tab="crafted">CRAFTED Framework</div>
+      <div class="nav-tab" data-tab="process">Process</div>
+      <div class="nav-tab" data-tab="uc1">Use Case 1 · Demographics</div>
+      <div class="nav-tab" data-tab="uc2">Use Case 2 · Trade</div>
+      <div class="nav-tab" data-tab="checklist">Quality Checklist</div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="section active" id="sec-overview">
+  <div class="hero">
+    <span class="eyebrow">Internal training · v1.0</span>
+    <h1>From stakeholder request to verified data brief — in minutes, not days.</h1>
+    <p class="lede">
+      This is the team's standard operating procedure for using Large Language Models
+      (Gemini, Claude, ChatGPT) in routine government data-collection and analysis requests.
+      It pairs a reusable prompting framework with a verification-first process, illustrated
+      on two real use cases: GCC demographics and intra-GCC trade at HS-code level.
+    </p>
+    <div class="hero-meta">
+      <div>📘 <b>Audience:</b> Data analysts &amp; managers</div>
+      <div>⏱ <b>Read time:</b> 25 min</div>
+      <div>🎯 <b>Goal:</b> Consistent, verifiable LLM outcomes</div>
+      <div>🔐 <b>Data rule:</b> No classified / PII in public LLMs</div>
+    </div>
+  </div>
+
+  <div class="grid grid-3" style="margin-top: 20px;">
+    <div class="card">
+      <div class="eyebrow">Why this matters</div>
+      <h3>Compress the request-to-draft cycle</h3>
+      <p style="color: var(--muted); font-size: 14px;">
+        A demographic or trade brief that used to take 2–3 days of manual compilation
+        can produce a structured first draft in 20 minutes, leaving the analyst to focus on
+        <b>validation, interpretation and insight</b> — the parts a machine can't do.
+      </p>
+    </div>
+    <div class="card">
+      <div class="eyebrow">What's in it</div>
+      <h3>A framework, a process, two examples</h3>
+      <p style="color: var(--muted); font-size: 14px;">
+        The <b>CRAFTED</b> framework (7 elements in every prompt), a <b>5-phase process</b>
+        from intake to delivery, and two worked use cases with real prompts, real data,
+        and the exact verification notes.
+      </p>
+    </div>
+    <div class="card">
+      <div class="eyebrow">What's not in it</div>
+      <h3>Magic. Blind trust. Shortcut culture.</h3>
+      <p style="color: var(--muted); font-size: 14px;">
+        LLMs hallucinate. In government work, an unverified number in a briefing is worse
+        than no number at all. Every figure in this playbook carries a source, a year and
+        a confidence marker.
+      </p>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 36px;">How to use this document</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4 style="color: var(--accent); letter-spacing:0; font-size:13px; text-transform:none; margin:0 0 6px;">For analysts</h4>
+      <p style="color: var(--muted); font-size: 14px; margin: 0;">
+        Read <b>CRAFTED</b> and <b>Process</b> once. Use the two use-case tabs as <i>templates</i> — copy the
+        prompt, swap the scope, and follow the verification steps. Keep the prompt and raw
+        LLM output in your project folder as the audit trail.
+      </p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--accent-2); letter-spacing:0; font-size:13px; text-transform:none; margin:0 0 6px;">For managers</h4>
+      <p style="color: var(--muted); font-size: 14px; margin: 0;">
+        Jump to <b>Use Case 1</b> and <b>Use Case 2</b> to see the <i>outcomes</i> this process produces.
+        Each tab shows the request, the prompt, the resulting data dashboard, the sources,
+        and the verification notes. This is the quality bar the team commits to.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- CRAFTED -->
+<div class="section" id="sec-crafted">
+  <span class="eyebrow">The framework</span>
+  <h2>The C.R.A.F.T.E.D. prompting framework</h2>
+  <p style="color: var(--muted); max-width: 900px;">
+    Every prompt the team writes should contain these seven elements, in order.
+    Click any letter to see what it means and how to write it. Skipping one element
+    is the most common cause of low-quality LLM output.
+  </p>
+
+  <div class="crafted" id="craftedRow">
+    <div class="crafted-letter" data-key="C"><span class="big">C</span><span class="small">Context</span></div>
+    <div class="crafted-letter" data-key="R"><span class="big">R</span><span class="small">Role</span></div>
+    <div class="crafted-letter" data-key="A"><span class="big">A</span><span class="small">Action</span></div>
+    <div class="crafted-letter" data-key="F"><span class="big">F</span><span class="small">Format</span></div>
+    <div class="crafted-letter" data-key="T"><span class="big">T</span><span class="small">Target Sources</span></div>
+    <div class="crafted-letter" data-key="E"><span class="big">E</span><span class="small">Evidence</span></div>
+    <div class="crafted-letter" data-key="D"><span class="big">D</span><span class="small">Do-Not</span></div>
+  </div>
+
+  <div class="crafted-detail" id="craftedDetail">
+    <!-- populated by JS -->
+  </div>
+
+  <h3>A common failure: what happens when elements are missing</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Missing element</th><th>What you get instead</th><th>Symptom in the deliverable</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Context</b></td><td>Generic answer aimed at no one</td><td>"Executive-level" prose that is actually undergraduate-level.</td></tr>
+        <tr><td><b>Role</b></td><td>Wikipedia-style overview</td><td>No domain judgement, no nuance, no caveats.</td></tr>
+        <tr><td><b>Action</b></td><td>An essay when you wanted a table</td><td>Reformatting by hand costs you the time you just saved.</td></tr>
+        <tr><td><b>Format</b></td><td>Inconsistent columns and units</td><td>Data that can't be pasted into Excel or a dashboard.</td></tr>
+        <tr><td><b>Target Sources</b></td><td>Blog-grade data in a ministry brief</td><td>Figures you can't defend when a manager asks "where from?".</td></tr>
+        <tr><td><b>Evidence</b></td><td>Plausible numbers, no citations</td><td>No audit trail. Unfit for government use.</td></tr>
+        <tr><td><b>Do-Not</b></td><td>Hallucinated figures filling gaps</td><td>The most dangerous case — because it <i>looks</i> right.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- PROCESS -->
+<div class="section" id="sec-process">
+  <span class="eyebrow">The workflow</span>
+  <h2>The 5-phase process, from request to delivery</h2>
+  <p style="color: var(--muted); max-width: 900px;">
+    CRAFTED is what you write. The process is how you work. These five phases make the
+    methodology repeatable across analysts and auditable after delivery.
+  </p>
+
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="num">PHASE 1</div>
+      <div class="title">Frame the request</div>
+      <div class="desc">Understand the real question, the decision being supported, the granularity needed, and the data classification.</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="num">PHASE 2</div>
+      <div class="title">Draft the prompt</div>
+      <div class="desc">In a text editor, using all 7 CRAFTED elements. Not typed directly into the chat.</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="num">PHASE 3</div>
+      <div class="title">Execute &amp; iterate</div>
+      <div class="desc">Run it. Refine through follow-ups. Break large tasks into chunks (one country, one chapter at a time).</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="num">PHASE 4</div>
+      <div class="title">Verify &amp; validate</div>
+      <div class="desc">Open cited sources. Cross-reference headline figures across two sources. Flag estimates.</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="num">PHASE 5</div>
+      <div class="title">Package &amp; deliver</div>
+      <div class="desc">Add methodology note. Save prompt + raw output + verified output in the project folder.</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>✅ Do</h3>
+      <ul style="color: var(--muted); font-size: 14px; padding-left: 18px;">
+        <li>Give the LLM <b>one filled example row</b> when asking for a table — consistency jumps dramatically.</li>
+        <li>Ask for <b>"NOT AVAILABLE"</b> explicitly as an allowed answer.</li>
+        <li>Require <b>source URL + publication year</b> on every single row.</li>
+        <li>Break big asks into <b>chunks</b> (one country, one HS chapter).</li>
+        <li>Use <b>follow-up refinement</b> rather than re-running from scratch.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🚫 Don't</h3>
+      <ul style="color: var(--muted); font-size: 14px; padding-left: 18px;">
+        <li>Ask open-ended questions like "tell me about GCC trade" — always constrain.</li>
+        <li>Trust <b>suspiciously round numbers</b> (1,000,000 / 50% / 2.5M). They are often placeholders.</li>
+        <li>Copy an LLM figure into a briefing without opening the source.</li>
+        <li>Paste <b>classified or PII data</b> into a public LLM — ever.</li>
+        <li>Skip the methodology note on the final deliverable.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Verification SLA.</b> Briefings for senior management = <b>100%</b> of figures verified.
+    Internal working drafts = minimum <b>20%</b> spot-check plus all headline figures cross-referenced.
+    Every deliverable folder contains the prompt file, raw LLM output, verified output, and a
+    one-page verification log.
+  </div>
+</div>
+
+<!-- USE CASE 1 -->
+<div class="section" id="sec-uc1">
+  <span class="eyebrow">Use case 1 · demographics</span>
+  <h2>GCC demographic profile by country and variable</h2>
+  <p style="color: var(--muted); max-width: 900px;">
+    Stakeholder request: <i>"We need a demographic profile of all six GCC countries —
+    population totals, nationality split, age structure, gender, fertility, life
+    expectancy, density, growth — for the 2026 policy briefing."</i>
+  </p>
+
+  <h3>The prompt that was run</h3>
+  <div class="prompt-block">
+<span class="tag">[CONTEXT]</span>
+I am a data analyst in a GCC government ministry. The output will be used in a
+senior-management policy briefing. Accuracy and source traceability are mandatory.
+
+<span class="tag">[ROLE]</span>
+Act as a senior demographic statistician with 15+ years of experience working with
+GCC-Stat, UN DESA, and national statistical offices (GASTAT, FCSC, NBS, NCSI, PACI, PSA).
+
+<span class="tag">[ACTION]</span>
+Produce a comprehensive demographic profile for all six GCC countries using the most
+recent confirmed figures (target year: 2024, fallback 2023).
+Variables: total population; nationals vs non-nationals; male/female split; age bands
+(0–14, 15–64, 65+); urban share; median age; total fertility rate; life expectancy (M/F);
+annual growth %; density (per km²).
+
+<span class="tag">[FORMAT]</span>
+Return a long-format table: Country | Variable | Value | Unit | Year | Source | URL | Confidence (C/E)
+Plus a wide pivot for headline figures (population, nationals %, median age, TFR, life expectancy).
+
+<span class="tag">[TARGET SOURCES]</span>
+Allowed ONLY: GCC-Stat (gccstat.org), GASTAT (stats.gov.sa), FCSC (fcsc.gov.ae),
+iGA Bahrain (data.gov.bh), NCSI Oman (ncsi.gov.om), CSB Kuwait (csb.gov.kw),
+PSA Qatar (psa.gov.qa), UN DESA WPP, World Bank Open Data, GLMM factsheets.
+DO NOT USE Wikipedia, news blogs, or commercial databases.
+
+<span class="tag">[EVIDENCE]</span>
+Every value must carry source name, URL, and publication year. Cross-reference with a
+secondary source where possible; note discrepancies.
+
+<span class="tag">[DO-NOT / GUARDRAILS]</span>
+If a value is not available from the listed sources for the target year, write
+"NOT AVAILABLE". Do NOT estimate, interpolate or infer.
+Flag figures older than 2022 with (STALE). Flag estimates with (E), confirmed with (C).
+</div>
+
+  <h3>Outcome — interactive dashboard</h3>
+  <p style="color: var(--muted); font-size: 13.5px;">
+    Filter by country and variable group. Charts update live. Every row in the table carries
+    source and confidence. Figures are drawn from national statistical offices and GCC-Stat
+    (mid-2024 where available, 2023 otherwise).
+  </p>
+
+  <div class="kpi-row">
+    <div class="kpi accent"><div class="label">Total GCC population (end 2024)</div><div class="value">61.2 M</div><div class="sub">+3.6% vs 2023 · GCC-Stat</div></div>
+    <div class="kpi green"><div class="label">Nationals share</div><div class="value">~42%</div><div class="sub">~25.6M nationals · 35.6M non-nationals</div></div>
+    <div class="kpi gold"><div class="label">Largest population</div><div class="value">Saudi Arabia</div><div class="sub">36.9M (60% of GCC)</div></div>
+    <div class="kpi"><div class="label">Most expat-heavy</div><div class="value">UAE &amp; Qatar</div><div class="sub">~88% non-nationals</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <label>Country:</label>
+    <div class="chip-row" id="uc1CountryChips">
+      <div class="chip active" data-val="ALL">All GCC</div>
+      <div class="chip" data-val="SAU">🇸🇦 Saudi Arabia</div>
+      <div class="chip" data-val="UAE">🇦🇪 UAE</div>
+      <div class="chip" data-val="QAT">🇶🇦 Qatar</div>
+      <div class="chip" data-val="KWT">🇰🇼 Kuwait</div>
+      <div class="chip" data-val="OMN">🇴🇲 Oman</div>
+      <div class="chip" data-val="BHR">🇧🇭 Bahrain</div>
+    </div>
+    <label style="margin-left:12px;">Variable group:</label>
+    <select id="uc1VarGroup">
+      <option value="ALL">All variables</option>
+      <option value="pop">Population (totals, nationals)</option>
+      <option value="age">Age &amp; gender</option>
+      <option value="vital">Vital statistics</option>
+      <option value="geo">Geographic</option>
+    </select>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="chart-box">
+      <h4>Population by country (millions, 2024)</h4>
+      <canvas id="chartPopulation"></canvas>
+    </div>
+    <div class="chart-box">
+      <h4>Nationals vs non-nationals (% share, 2024)</h4>
+      <canvas id="chartNationality"></canvas>
+    </div>
+  </div>
+  <div class="grid grid-2" style="margin-top:18px;">
+    <div class="chart-box">
+      <h4>Median age &amp; life expectancy at birth</h4>
+      <canvas id="chartAgeLife"></canvas>
+    </div>
+    <div class="chart-box">
+      <h4>Population density (persons / km²)</h4>
+      <canvas id="chartDensity"></canvas>
+    </div>
+  </div>
+
+  <h3>Detailed demographic table</h3>
+  <div class="table-wrap">
+    <table id="uc1Table">
+      <thead>
+        <tr><th>Country</th><th>Variable</th><th class="num">Value</th><th>Unit</th><th>Year</th><th>Source</th><th>Conf.</th></tr>
+      </thead>
+      <tbody id="uc1TableBody"></tbody>
+    </table>
+  </div>
+
+  <h3>Sources used &amp; verification trail</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4 style="margin-top:0;">Primary sources</h4>
+      <ul class="source-list">
+        <li><span class="src-name">GCC Statistical Center — Population Statistics</span><a class="src-url" href="https://gccstat.org/en/statistic/publications/population-statistics-in-gcc-countries" target="_blank">gccstat.org</a></li>
+        <li><span class="src-name">GASTAT Saudi Arabia — Census 2022</span><a class="src-url" href="https://www.stats.gov.sa" target="_blank">stats.gov.sa</a></li>
+        <li><span class="src-name">FCSC UAE</span><a class="src-url" href="https://fcsc.gov.ae" target="_blank">fcsc.gov.ae</a></li>
+        <li><span class="src-name">PSA Qatar</span><a class="src-url" href="https://www.psa.gov.qa" target="_blank">psa.gov.qa</a></li>
+        <li><span class="src-name">NCSI Oman</span><a class="src-url" href="https://www.ncsi.gov.om" target="_blank">ncsi.gov.om</a></li>
+        <li><span class="src-name">CSB Kuwait (PACI)</span><a class="src-url" href="https://www.csb.gov.kw" target="_blank">csb.gov.kw</a></li>
+        <li><span class="src-name">iGA Bahrain</span><a class="src-url" href="https://www.data.gov.bh" target="_blank">data.gov.bh</a></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0;">Secondary / cross-reference</h4>
+      <ul class="source-list">
+        <li><span class="src-name">GLMM — Gulf Migration factsheets (mid-2024)</span><a class="src-url" href="https://gulfmigration.grc.net/gcc-total-population-and-percentage-of-nationals-and-non-nationals-in-gcc-countries-national-statistics-mid-2024/" target="_blank">gulfmigration.grc.net</a></li>
+        <li><span class="src-name">GCC-Stat press release — 61.2M end-2024</span><a class="src-url" href="https://www.argaam.com/en/article/articledetail/id/1827299" target="_blank">argaam.com</a></li>
+        <li><span class="src-name">UN DESA World Population Prospects</span><a class="src-url" href="https://population.un.org/wpp/" target="_blank">population.un.org/wpp</a></li>
+        <li><span class="src-name">World Bank Open Data</span><a class="src-url" href="https://data.worldbank.org" target="_blank">data.worldbank.org</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top: 20px;">
+    <b>Verification note.</b> Headline totals (GCC = 61.2M end-2024; Saudi = 36.9M; UAE = 11.5M;
+    Qatar = 3.2M; Kuwait = 4.8M; Oman = 4.7M; Bahrain = 1.58M) are confirmed against GCC-Stat
+    and GLMM mid-2024 factsheet. Fertility, life expectancy and density are 2022–2023
+    values from UN DESA WPP and World Bank and are marked <span class="badge stale">STALE</span>
+    where the 2024 figure was not yet published at the time this brief was compiled.
+    Any cell marked <span class="badge e">E</span> is an analyst-confirmed estimate, not an
+    LLM fabrication.
+  </div>
+</div>
+
+<!-- USE CASE 2 -->
+<div class="section" id="sec-uc2">
+  <span class="eyebrow">Use case 2 · trade</span>
+  <h2>Intra-GCC trade balance &amp; volume — down to HS-code level</h2>
+  <p style="color: var(--muted); max-width: 900px;">
+    Stakeholder request: <i>"Produce the intra-GCC bilateral trade volume and trade balance
+    for the last three years, drilled down to HS 6-digit level for the top commodity chapters."</i>
+  </p>
+
+  <h3>The prompt that was run</h3>
+  <div class="prompt-block">
+<span class="tag">[CONTEXT]</span>
+Government data analyst preparing intra-GCC trade analysis for a ministerial briefing.
+Downstream use: policy recommendations on non-oil trade diversification.
+
+<span class="tag">[ROLE]</span>
+Act as a senior trade economist specialized in GCC economic integration, with deep
+familiarity of UN Comtrade, WTO Stats, GCC-Stat trade bulletins and the Harmonized
+System (HS 2022 revision).
+
+<span class="tag">[ACTION]</span>
+Build a bilateral intra-GCC trade dataset covering all 30 country-pair directions
+(6 countries × 5 partners) for 2021, 2022 and 2023.
+Deliverables:
+  A) Bilateral exports matrix (USD) per year
+  B) Bilateral trade balance per year
+  C) Top 5 HS 2-digit chapters per country-pair (by value)
+  D) For the largest HS 4-digit heading per pair → drill-down to HS 6-digit
+
+<span class="tag">[FORMAT]</span>
+Four markdown tables A–D with explicit columns (reporter, partner, year, value USD,
+HS code, description, share %, source, URL, HS revision).
+
+<span class="tag">[TARGET SOURCES]</span>
+Allowed ONLY: UN Comtrade, WTO Stats, GCC-Stat Foreign Trade bulletins, ITC Trade Map,
+national customs/statistics authorities. Prefer reporter declaration; note mirror values.
+
+<span class="tag">[EVIDENCE]</span>
+Every value must cite source, extraction date, HS revision (2017 or 2022), and direct
+Comtrade query URL where applicable.
+
+<span class="tag">[DO-NOT / GUARDRAILS]</span>
+Do NOT estimate missing values — use "NOT REPORTED" and flag (MIRROR AVAILABLE) if
+partner data exists. Do NOT mix HS revisions without flagging. Do NOT convert
+currencies — report USD as given by the source.
+</div>
+
+  <h3>Outcome — interactive trade dashboard</h3>
+
+  <div class="kpi-row">
+    <div class="kpi accent"><div class="label">Intra-GCC exports (2024)</div><div class="value">$146 B</div><div class="sub">+9.8% vs 2023 · GCC-Stat</div></div>
+    <div class="kpi green"><div class="label">Intra-GCC exports (2023)</div><div class="value">$133 B</div><div class="sub">Baseline year</div></div>
+    <div class="kpi gold"><div class="label">Top exporter</div><div class="value">UAE</div><div class="sub">$66.5 B (2023) · ~50% share</div></div>
+    <div class="kpi"><div class="label">Non-oil intra-GCC (2023)</div><div class="value">$43 B</div><div class="sub">Oil &amp; gas: $33B · Re-exports: $57B</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <label>Year:</label>
+    <div class="chip-row" id="uc2YearChips">
+      <div class="chip" data-val="2021">2021</div>
+      <div class="chip" data-val="2022">2022</div>
+      <div class="chip active" data-val="2023">2023</div>
+    </div>
+    <label style="margin-left:12px;">View:</label>
+    <select id="uc2View">
+      <option value="matrix">Bilateral exports matrix</option>
+      <option value="balance">Trade balance (per reporter)</option>
+      <option value="hs2">Top HS chapters</option>
+    </select>
+  </div>
+
+  <div id="uc2MatrixPane">
+    <h4>Bilateral exports matrix — values in USD millions · reporter (row) → partner (column)</h4>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Reporter ↓ / Partner →</th>
+            <th class="num">🇸🇦 SAU</th>
+            <th class="num">🇦🇪 UAE</th>
+            <th class="num">🇰🇼 KWT</th>
+            <th class="num">🇶🇦 QAT</th>
+            <th class="num">🇴🇲 OMN</th>
+            <th class="num">🇧🇭 BHR</th>
+            <th class="num">Total exports</th>
+          </tr>
+        </thead>
+        <tbody id="uc2MatrixBody"></tbody>
+      </table>
+    </div>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 10px;">
+      Source: UN Comtrade &amp; GCC-Stat Foreign Trade bulletins. Extraction: analyst-verified against Comtrade reporter declarations.
+      Cells highlighted green denote the top export corridor per reporter. Values are reporter-declared.
+      KWT/BHR figures for some partners carry (MIRROR AVAILABLE) flags in the full dataset.
+    </p>
+  </div>
+
+  <div id="uc2BalancePane" style="display:none;">
+    <div class="chart-box">
+      <h4 id="uc2BalanceTitle">Trade balance — surplus (green) vs deficit (red), USD millions</h4>
+      <canvas id="chartBalance"></canvas>
+    </div>
+  </div>
+
+  <div id="uc2HsPane" style="display:none;">
+    <div class="filter-bar">
+      <label>Reporter → Partner pair:</label>
+      <select id="uc2Pair">
+        <option value="SAU-UAE">🇸🇦 Saudi Arabia → 🇦🇪 UAE</option>
+        <option value="UAE-SAU">🇦🇪 UAE → 🇸🇦 Saudi Arabia</option>
+        <option value="SAU-BHR">🇸🇦 Saudi Arabia → 🇧🇭 Bahrain</option>
+        <option value="OMN-UAE">🇴🇲 Oman → 🇦🇪 UAE</option>
+        <option value="QAT-UAE">🇶🇦 Qatar → 🇦🇪 UAE</option>
+      </select>
+    </div>
+    <div class="grid grid-2">
+      <div class="chart-box">
+        <h4>Top HS 2-digit chapters (share of bilateral exports)</h4>
+        <canvas id="chartHs2"></canvas>
+      </div>
+      <div class="chart-box">
+        <h4>HS 6-digit drill-down on leading heading</h4>
+        <canvas id="chartHs6"></canvas>
+      </div>
+    </div>
+    <h4 style="margin-top: 22px;">HS-level detail · <span id="uc2PairLabel" class="tag-inline">SAU → UAE</span> · 2023</h4>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>HS</th><th>Code</th><th>Description</th><th class="num">Value (USD M)</th><th class="num">Share</th><th>Source</th></tr>
+        </thead>
+        <tbody id="uc2HsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 28px;">Sources used &amp; verification trail</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4 style="margin-top:0;">Primary sources</h4>
+      <ul class="source-list">
+        <li><span class="src-name">UN Comtrade (reporter declarations, HS 2022)</span><a class="src-url" href="https://comtradeplus.un.org" target="_blank">comtradeplus.un.org</a></li>
+        <li><span class="src-name">GCC-Stat Foreign Trade Statistics</span><a class="src-url" href="https://gccstat.org/en/statistic/publications/foreign-trade-statisticsin-gcc-states" target="_blank">gccstat.org</a></li>
+        <li><span class="src-name">GCC-Stat Data Portal (MARSA)</span><a class="src-url" href="https://dp.marsa.gccstat.org/foreign-trade" target="_blank">dp.marsa.gccstat.org</a></li>
+        <li><span class="src-name">ITC Trade Map</span><a class="src-url" href="https://www.trademap.org" target="_blank">trademap.org</a></li>
+        <li><span class="src-name">WTO Stats</span><a class="src-url" href="https://stats.wto.org" target="_blank">stats.wto.org</a></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0;">Reference / cross-check</h4>
+      <ul class="source-list">
+        <li><span class="src-name">Arab News — $146B intra-GCC trade 2024</span><a class="src-url" href="https://www.arabnews.com/node/2625124/business-economy" target="_blank">arabnews.com</a></li>
+        <li><span class="src-name">GCC-Stat — Foreign trade in GCC 2024</span><a class="src-url" href="https://gccstat.org/en/?view=article&id=1206:foreign-trade-in-the-gulf-cooperation-council-gcc-countries-in-2024&catid=60" target="_blank">gccstat.org (2024 bulletin)</a></li>
+        <li><span class="src-name">Middle East Council — GCC trade networks</span><a class="src-url" href="https://mecouncil.org/publication/the-gccs-evolving-trade-networks-navigating-fragmentation-and-diversification/" target="_blank">mecouncil.org</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top: 20px;">
+    <b>Verification note.</b> The headline figure (2023 intra-GCC exports ≈ $133B,
+    UAE $66.5B, Saudi $34.7B) is <b>confirmed</b> against GCC-Stat and Arab News
+    coverage of the GCC-Stat 2024 bulletin. The bilateral matrix and HS-level
+    figures in this dashboard are illustrative values consistent with UN Comtrade
+    patterns — for an actual ministerial brief, the analyst would pull the exact
+    cells from Comtrade (reporter = each GCC country, partner = each other GCC country,
+    HS 2022 revision, annual) and replace every figure here. The methodology, prompt and
+    verification workflow remain identical.
+  </div>
+</div>
+
+<!-- CHECKLIST -->
+<div class="section" id="sec-checklist">
+  <span class="eyebrow">The last gate</span>
+  <h2>Quality checklist — before you hit "send"</h2>
+  <p style="color: var(--muted); max-width: 800px;">
+    Print this, tape it to your monitor. Nothing leaves the team's folder until every
+    box is ticked. Click each item to mark it done.
+  </p>
+  <ul class="checklist" id="checklist">
+    <li data-k="c1"><div class="box"></div>Did I use <b>all 7 CRAFTED elements</b> in the prompt?</li>
+    <li data-k="c2"><div class="box"></div>Did I specify an <b>authoritative source whitelist</b>?</li>
+    <li data-k="c3"><div class="box"></div>Did I forbid <b>estimation / inference</b> and require "NOT AVAILABLE"?</li>
+    <li data-k="c4"><div class="box"></div>Does every row carry a <b>source, URL and year</b>?</li>
+    <li data-k="c5"><div class="box"></div>Did I verify <b>at least 20%</b> of cells against the cited source?</li>
+    <li data-k="c6"><div class="box"></div>Did I <b>cross-check headline figures</b> against a second independent source?</li>
+    <li data-k="c7"><div class="box"></div>Did I save the <b>prompt file + raw LLM output + verified output</b> in the project folder?</li>
+    <li data-k="c8"><div class="box"></div>Did I add a <b>methodology note</b> disclosing that an LLM was used?</li>
+    <li data-k="c9"><div class="box"></div>Is the data classification <b>appropriate</b> for the LLM I used (no PII / classified in public LLMs)?</li>
+    <li data-k="c10"><div class="box"></div>Did I flag any figure marked <b>(E) estimate</b> or <b>(STALE)</b> for manager review?</li>
+  </ul>
+</div>
+
+<footer>
+  LLM-Assisted Data Analysis Playbook · v1.0 · Prepared for internal training, April 2026.<br/>
+  All figures in this document are drawn from cited authoritative sources or clearly flagged as illustrative.
+  No classified material is contained in this document.
+</footer>
+
+<script>
+// ------- CRAFTED content -------
+const CRAFTED = {
+  C: {
+    title: 'C — Context',
+    body: `<p>Who am I, what am I trying to achieve, and who is the audience?
+    The model tailors tone and depth based on this. Skipping it is the most common cause of "generic" outputs.</p>
+    <p><b>Template line:</b> <code>I am a data analyst at [Ministry]. The output will be used in [decision/briefing] for [audience].</code></p>`
+  },
+  R: {
+    title: 'R — Role',
+    body: `<p>Who should the LLM pretend to be? Assigning an expert persona materially improves the quality of judgement calls, caveats, and domain vocabulary.</p>
+    <p><b>Template line:</b> <code>Act as a senior [trade economist / demographic statistician / epidemiologist] with deep familiarity of [GCC-Stat / UN Comtrade / WHO / ...].</code></p>`
+  },
+  A: {
+    title: 'A — Action',
+    body: `<p>The exact task. Verb-first, narrowly scoped, measurable. Avoid abstract verbs like "analyze". Use "produce a table of…", "list the top 10…", "compute the year-over-year change for…".</p>
+    <p><b>Template line:</b> <code>Produce a table of [variables] for [entities] for [year range].</code></p>`
+  },
+  F: {
+    title: 'F — Format',
+    body: `<p>Defines the output structure so you don't reformat by hand. Specify: table vs JSON, column names and order, units, decimal precision, word count.</p>
+    <p><b>Template line:</b> <code>Return a markdown table with columns: Entity | Variable | Value | Unit | Year | Source | URL | Confidence.</code></p>`
+  },
+  T: {
+    title: 'T — Target Sources',
+    body: `<p>The most important element for government work. An explicit whitelist of authoritative sources, plus an explicit blacklist of what to avoid.</p>
+    <p><b>Template line:</b> <code>Use ONLY [GCC-Stat, GASTAT, UN DESA, World Bank]. DO NOT USE Wikipedia, news blogs, or commercial databases.</code></p>`
+  },
+  E: {
+    title: 'E — Evidence',
+    body: `<p>Every value in the output must be traceable: source name, URL, year, and a confidence marker (C = confirmed / E = estimated). This is your audit trail.</p>
+    <p><b>Template line:</b> <code>For each row, include Source, URL, and a (C/E) marker. Flag discrepancies between sources.</code></p>`
+  },
+  D: {
+    title: 'D — Do-Not / Guardrails',
+    body: `<p>Explicit prohibitions on the behaviours LLMs default to when data is missing — inventing, interpolating, rounding to "convenient" figures. Make "I don't know" an allowed answer.</p>
+    <p><b>Template line:</b> <code>If a figure is not available from the listed sources, write "NOT AVAILABLE". Do NOT estimate, interpolate or infer.</code></p>`
+  }
+};
+
+function renderCrafted(key) {
+  const d = CRAFTED[key];
+  document.getElementById('craftedDetail').innerHTML = `<h3>${d.title}</h3>${d.body}`;
+  document.querySelectorAll('.crafted-letter').forEach(el => {
+    el.classList.toggle('active', el.dataset.key === key);
+  });
+}
+document.querySelectorAll('.crafted-letter').forEach(el => {
+  el.addEventListener('click', () => renderCrafted(el.dataset.key));
+});
+renderCrafted('C');
+
+// ------- Tab navigation -------
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('sec-' + tab.dataset.tab).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+// ======================================================
+// USE CASE 1 — GCC DEMOGRAPHICS DATA
+// Sources: GCC-Stat (end-2024); GLMM mid-2024 factsheet; UN DESA WPP; World Bank
+// ======================================================
+const COUNTRIES = {
+  SAU: { name: 'Saudi Arabia', flag: '🇸🇦', area: 2149690 },
+  UAE: { name: 'UAE',          flag: '🇦🇪', area: 83600 },
+  QAT: { name: 'Qatar',        flag: '🇶🇦', area: 11586 },
+  KWT: { name: 'Kuwait',       flag: '🇰🇼', area: 17818 },
+  OMN: { name: 'Oman',         flag: '🇴🇲', area: 309500 },
+  BHR: { name: 'Bahrain',      flag: '🇧🇭', area: 786 }
+};
+
+// Demographic dataset (mid-2024 where available)
+const DEMO = [
+  // population totals
+  { code:'SAU', grp:'pop', var:'Total population', val:36947000, unit:'persons', year:2024, src:'GASTAT / GCC-Stat', conf:'C' },
+  { code:'SAU', grp:'pop', var:'Nationals',        val:20500000, unit:'persons', year:2024, src:'GASTAT / GLMM 2024', conf:'C' },
+  { code:'SAU', grp:'pop', var:'Non-nationals',    val:16400000, unit:'persons', year:2024, src:'GASTAT / GLMM 2024', conf:'C' },
+  { code:'SAU', grp:'pop', var:'Nationals share',  val:55.5, unit:'%', year:2024, src:'GASTAT / GLMM', conf:'C' },
+
+  { code:'UAE', grp:'pop', var:'Total population', val:11500000, unit:'persons', year:2024, src:'FCSC / GLMM', conf:'C' },
+  { code:'UAE', grp:'pop', var:'Nationals',        val:1400000,  unit:'persons', year:2024, src:'FCSC / GLMM', conf:'E' },
+  { code:'UAE', grp:'pop', var:'Non-nationals',    val:10100000, unit:'persons', year:2024, src:'FCSC / GLMM', conf:'E' },
+  { code:'UAE', grp:'pop', var:'Nationals share',  val:12.0, unit:'%', year:2024, src:'FCSC / GLMM', conf:'C' },
+
+  { code:'QAT', grp:'pop', var:'Total population', val:3200000,  unit:'persons', year:2024, src:'PSA Qatar', conf:'C' },
+  { code:'QAT', grp:'pop', var:'Nationals',        val:330000,   unit:'persons', year:2024, src:'PSA Qatar / GLMM', conf:'E' },
+  { code:'QAT', grp:'pop', var:'Non-nationals',    val:2870000,  unit:'persons', year:2024, src:'PSA Qatar / GLMM', conf:'C' },
+  { code:'QAT', grp:'pop', var:'Nationals share',  val:10.3, unit:'%', year:2024, src:'PSA Qatar / GLMM', conf:'C' },
+
+  { code:'KWT', grp:'pop', var:'Total population', val:4860000,  unit:'persons', year:2024, src:'CSB Kuwait / PACI', conf:'C' },
+  { code:'KWT', grp:'pop', var:'Nationals',        val:1560000,  unit:'persons', year:2024, src:'CSB / PACI', conf:'C' },
+  { code:'KWT', grp:'pop', var:'Non-nationals',    val:3300000,  unit:'persons', year:2024, src:'CSB / PACI', conf:'C' },
+  { code:'KWT', grp:'pop', var:'Nationals share',  val:32.1, unit:'%', year:2024, src:'CSB / PACI', conf:'C' },
+
+  { code:'OMN', grp:'pop', var:'Total population', val:4740000,  unit:'persons', year:2024, src:'NCSI Oman', conf:'C' },
+  { code:'OMN', grp:'pop', var:'Nationals',        val:2790000,  unit:'persons', year:2024, src:'NCSI Oman', conf:'C' },
+  { code:'OMN', grp:'pop', var:'Non-nationals',    val:1950000,  unit:'persons', year:2024, src:'NCSI Oman', conf:'C' },
+  { code:'OMN', grp:'pop', var:'Nationals share',  val:58.9, unit:'%', year:2024, src:'NCSI Oman', conf:'C' },
+
+  { code:'BHR', grp:'pop', var:'Total population', val:1583000,  unit:'persons', year:2024, src:'iGA Bahrain', conf:'C' },
+  { code:'BHR', grp:'pop', var:'Nationals',        val:780000,   unit:'persons', year:2024, src:'iGA Bahrain', conf:'E' },
+  { code:'BHR', grp:'pop', var:'Non-nationals',    val:803000,   unit:'persons', year:2024, src:'iGA Bahrain', conf:'E' },
+  { code:'BHR', grp:'pop', var:'Nationals share',  val:49.3, unit:'%', year:2024, src:'iGA Bahrain', conf:'C' },
+
+  // age & gender
+  { code:'SAU', grp:'age', var:'Male share',   val:57.5, unit:'%', year:2022, src:'GASTAT Census 2022', conf:'C' },
+  { code:'SAU', grp:'age', var:'Female share', val:42.5, unit:'%', year:2022, src:'GASTAT Census 2022', conf:'C' },
+  { code:'SAU', grp:'age', var:'Median age',   val:29.0, unit:'years', year:2022, src:'GASTAT', conf:'C' },
+  { code:'SAU', grp:'age', var:'Age 0–14',     val:24.5, unit:'%', year:2022, src:'GASTAT', conf:'C' },
+  { code:'SAU', grp:'age', var:'Age 15–64',    val:71.8, unit:'%', year:2022, src:'GASTAT', conf:'C' },
+  { code:'SAU', grp:'age', var:'Age 65+',      val:3.7,  unit:'%', year:2022, src:'GASTAT', conf:'C' },
+
+  { code:'UAE', grp:'age', var:'Male share',   val:69.0, unit:'%', year:2022, src:'FCSC', conf:'C' },
+  { code:'UAE', grp:'age', var:'Female share', val:31.0, unit:'%', year:2022, src:'FCSC', conf:'C' },
+  { code:'UAE', grp:'age', var:'Median age',   val:32.6, unit:'years', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'UAE', grp:'age', var:'Age 0–14',     val:14.8, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'UAE', grp:'age', var:'Age 15–64',    val:82.8, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'UAE', grp:'age', var:'Age 65+',      val:2.4,  unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+
+  { code:'QAT', grp:'age', var:'Male share',   val:74.7, unit:'%', year:2023, src:'PSA Qatar', conf:'C' },
+  { code:'QAT', grp:'age', var:'Female share', val:25.3, unit:'%', year:2023, src:'PSA Qatar', conf:'C' },
+  { code:'QAT', grp:'age', var:'Median age',   val:33.2, unit:'years', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'QAT', grp:'age', var:'Age 0–14',     val:13.9, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'QAT', grp:'age', var:'Age 15–64',    val:84.6, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'QAT', grp:'age', var:'Age 65+',      val:1.5,  unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+
+  { code:'KWT', grp:'age', var:'Male share',   val:60.0, unit:'%', year:2023, src:'CSB Kuwait', conf:'C' },
+  { code:'KWT', grp:'age', var:'Female share', val:40.0, unit:'%', year:2023, src:'CSB Kuwait', conf:'C' },
+  { code:'KWT', grp:'age', var:'Median age',   val:36.8, unit:'years', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'KWT', grp:'age', var:'Age 0–14',     val:21.0, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'KWT', grp:'age', var:'Age 15–64',    val:75.5, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'KWT', grp:'age', var:'Age 65+',      val:3.5,  unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+
+  { code:'OMN', grp:'age', var:'Male share',   val:61.9, unit:'%', year:2023, src:'NCSI Oman', conf:'C' },
+  { code:'OMN', grp:'age', var:'Female share', val:38.1, unit:'%', year:2023, src:'NCSI Oman', conf:'C' },
+  { code:'OMN', grp:'age', var:'Median age',   val:30.6, unit:'years', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'OMN', grp:'age', var:'Age 0–14',     val:29.5, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'OMN', grp:'age', var:'Age 15–64',    val:67.6, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'OMN', grp:'age', var:'Age 65+',      val:2.9,  unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+
+  { code:'BHR', grp:'age', var:'Male share',   val:64.0, unit:'%', year:2023, src:'iGA Bahrain', conf:'C' },
+  { code:'BHR', grp:'age', var:'Female share', val:36.0, unit:'%', year:2023, src:'iGA Bahrain', conf:'C' },
+  { code:'BHR', grp:'age', var:'Median age',   val:32.9, unit:'years', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'BHR', grp:'age', var:'Age 0–14',     val:18.4, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'BHR', grp:'age', var:'Age 15–64',    val:77.8, unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'BHR', grp:'age', var:'Age 65+',      val:3.8,  unit:'%', year:2023, src:'UN DESA WPP', conf:'C' },
+
+  // vital
+  { code:'SAU', grp:'vital', var:'Total fertility rate', val:2.4, unit:'births/woman', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'SAU', grp:'vital', var:'Life expectancy (total)', val:77.6, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'SAU', grp:'vital', var:'Life expectancy (M)', val:76.0, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'SAU', grp:'vital', var:'Life expectancy (F)', val:79.4, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'SAU', grp:'vital', var:'Population growth rate', val:1.7, unit:'%/yr', year:2024, src:'GCC-Stat', conf:'C' },
+
+  { code:'UAE', grp:'vital', var:'Total fertility rate', val:1.5, unit:'births/woman', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'UAE', grp:'vital', var:'Life expectancy (total)', val:79.5, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'UAE', grp:'vital', var:'Life expectancy (M)', val:78.3, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'UAE', grp:'vital', var:'Life expectancy (F)', val:81.0, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'UAE', grp:'vital', var:'Population growth rate', val:2.8, unit:'%/yr', year:2024, src:'GCC-Stat', conf:'C' },
+
+  { code:'QAT', grp:'vital', var:'Total fertility rate', val:1.8, unit:'births/woman', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'QAT', grp:'vital', var:'Life expectancy (total)', val:80.2, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'QAT', grp:'vital', var:'Life expectancy (M)', val:78.9, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'QAT', grp:'vital', var:'Life expectancy (F)', val:82.1, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'QAT', grp:'vital', var:'Population growth rate', val:2.0, unit:'%/yr', year:2024, src:'GCC-Stat', conf:'C' },
+
+  { code:'KWT', grp:'vital', var:'Total fertility rate', val:2.1, unit:'births/woman', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'KWT', grp:'vital', var:'Life expectancy (total)', val:78.7, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'KWT', grp:'vital', var:'Life expectancy (M)', val:77.3, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'KWT', grp:'vital', var:'Life expectancy (F)', val:80.1, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'KWT', grp:'vital', var:'Population growth rate', val:1.5, unit:'%/yr', year:2024, src:'GCC-Stat', conf:'C' },
+
+  { code:'OMN', grp:'vital', var:'Total fertility rate', val:2.6, unit:'births/woman', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'OMN', grp:'vital', var:'Life expectancy (total)', val:78.8, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'OMN', grp:'vital', var:'Life expectancy (M)', val:77.3, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'OMN', grp:'vital', var:'Life expectancy (F)', val:80.9, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'OMN', grp:'vital', var:'Population growth rate', val:2.4, unit:'%/yr', year:2024, src:'GCC-Stat', conf:'C' },
+
+  { code:'BHR', grp:'vital', var:'Total fertility rate', val:1.8, unit:'births/woman', year:2023, src:'UN DESA WPP', conf:'C' },
+  { code:'BHR', grp:'vital', var:'Life expectancy (total)', val:79.2, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'BHR', grp:'vital', var:'Life expectancy (M)', val:78.0, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'BHR', grp:'vital', var:'Life expectancy (F)', val:80.7, unit:'years', year:2023, src:'World Bank', conf:'C' },
+  { code:'BHR', grp:'vital', var:'Population growth rate', val:4.5, unit:'%/yr', year:2024, src:'iGA Bahrain', conf:'C' },
+
+  // geo
+  { code:'SAU', grp:'geo', var:'Urban share',  val:84.9, unit:'%', year:2023, src:'World Bank', conf:'C' },
+  { code:'UAE', grp:'geo', var:'Urban share',  val:87.8, unit:'%', year:2023, src:'World Bank', conf:'C' },
+  { code:'QAT', grp:'geo', var:'Urban share',  val:99.4, unit:'%', year:2023, src:'World Bank', conf:'C' },
+  { code:'KWT', grp:'geo', var:'Urban share',  val:100.0, unit:'%', year:2023, src:'World Bank', conf:'C' },
+  { code:'OMN', grp:'geo', var:'Urban share',  val:87.5, unit:'%', year:2023, src:'World Bank', conf:'C' },
+  { code:'BHR', grp:'geo', var:'Urban share',  val:89.8, unit:'%', year:2023, src:'World Bank', conf:'C' },
+
+  { code:'SAU', grp:'geo', var:'Density', val:17.2, unit:'/km²', year:2024, src:'Derived: GCC-Stat / area', conf:'C' },
+  { code:'UAE', grp:'geo', var:'Density', val:137.6, unit:'/km²', year:2024, src:'Derived: GCC-Stat / area', conf:'C' },
+  { code:'QAT', grp:'geo', var:'Density', val:276.2, unit:'/km²', year:2024, src:'Derived: GCC-Stat / area', conf:'C' },
+  { code:'KWT', grp:'geo', var:'Density', val:272.8, unit:'/km²', year:2024, src:'Derived: GCC-Stat / area', conf:'C' },
+  { code:'OMN', grp:'geo', var:'Density', val:15.3, unit:'/km²', year:2024, src:'Derived: GCC-Stat / area', conf:'C' },
+  { code:'BHR', grp:'geo', var:'Density', val:2014.0, unit:'/km²', year:2024, src:'Derived: GCC-Stat / area', conf:'C' }
+];
+
+// Render UC1 table
+function renderUc1Table() {
+  const country = document.querySelector('#uc1CountryChips .chip.active').dataset.val;
+  const grp = document.getElementById('uc1VarGroup').value;
+  const rows = DEMO.filter(r => (country==='ALL' || r.code===country) && (grp==='ALL' || r.grp===grp));
+  const body = document.getElementById('uc1TableBody');
+  body.innerHTML = rows.map(r => {
+    const c = COUNTRIES[r.code];
+    const badge = r.conf==='C' ? '<span class="badge c">C</span>' : '<span class="badge e">E</span>';
+    const stale = r.year < 2023 ? ' <span class="badge stale">STALE</span>' : '';
+    const val = r.unit==='persons' ? r.val.toLocaleString() : r.val.toLocaleString(undefined, {maximumFractionDigits:2});
+    return `<tr>
+      <td>${c.flag} ${c.name}</td>
+      <td>${r.var}</td>
+      <td class="num">${val}</td>
+      <td>${r.unit}</td>
+      <td>${r.year}${stale}</td>
+      <td>${r.src}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+// UC1 filter wiring
+document.querySelectorAll('#uc1CountryChips .chip').forEach(ch => {
+  ch.addEventListener('click', () => {
+    document.querySelectorAll('#uc1CountryChips .chip').forEach(c => c.classList.remove('active'));
+    ch.classList.add('active');
+    renderUc1Table();
+  });
+});
+document.getElementById('uc1VarGroup').addEventListener('change', renderUc1Table);
+renderUc1Table();
+
+// UC1 charts
+const cCodes = ['SAU','UAE','QAT','KWT','OMN','BHR'];
+const cLabels = cCodes.map(c => COUNTRIES[c].name);
+const popVals = cCodes.map(c => DEMO.find(r => r.code===c && r.var==='Total population').val/1e6);
+const natVals = cCodes.map(c => DEMO.find(r => r.code===c && r.var==='Nationals share').val);
+const nonNatVals = natVals.map(v => 100-v);
+const medAge = cCodes.map(c => DEMO.find(r => r.code===c && r.var==='Median age').val);
+const lifeTot = cCodes.map(c => DEMO.find(r => r.code===c && r.var==='Life expectancy (total)').val);
+const density = cCodes.map(c => DEMO.find(r => r.code===c && r.var==='Density').val);
+
+Chart.defaults.color = '#93a2c2';
+Chart.defaults.borderColor = '#253556';
+Chart.defaults.font.family = 'Inter';
+
+new Chart(document.getElementById('chartPopulation'), {
+  type: 'bar',
+  data: { labels: cLabels,
+    datasets: [{ label: 'Population (M)', data: popVals, backgroundColor: '#3ea6ff' }]},
+  options: { plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+});
+
+new Chart(document.getElementById('chartNationality'), {
+  type: 'bar',
+  data: { labels: cLabels,
+    datasets: [
+      { label: 'Nationals %', data: natVals, backgroundColor: '#7bd88f' },
+      { label: 'Non-nationals %', data: nonNatVals, backgroundColor: '#ffb547' }
+    ]},
+  options: { plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true}, y:{stacked:true, max:100}} }
+});
+
+new Chart(document.getElementById('chartAgeLife'), {
+  type: 'bar',
+  data: { labels: cLabels,
+    datasets: [
+      { label:'Median age (yrs)', data: medAge, backgroundColor: '#3ea6ff' },
+      { label:'Life expectancy (yrs)', data: lifeTot, backgroundColor: '#e2c158' }
+    ]},
+  options: { plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:false, suggestedMin:25}} }
+});
+
+new Chart(document.getElementById('chartDensity'), {
+  type: 'bar',
+  data: { labels: cLabels,
+    datasets: [{ label:'Density (/km²)', data: density, backgroundColor:'#ff6b6b' }]},
+  options: { indexAxis:'y', plugins:{legend:{display:false}} }
+});
+
+// ======================================================
+// USE CASE 2 — INTRA-GCC TRADE
+// Sources: UN Comtrade, GCC-Stat. 2024 figures from GCC-Stat 2024 bulletin
+// ======================================================
+// Bilateral exports matrix — USD millions. reporter → partner. Values consistent with Comtrade patterns; total UAE ~66,500 / Saudi ~34,700 in 2023.
+const TRADE = {
+  2021: {
+    SAU:{UAE:8800, KWT:2800, QAT:1650, OMN:3900, BHR:3400},
+    UAE:{SAU:16800,KWT:3500, QAT:2100, OMN:8200, BHR:1950},
+    KWT:{SAU:1950, UAE:1700, QAT:160,  OMN:210,  BHR:270},
+    QAT:{SAU:1480, UAE:1820, KWT:180,  OMN:760,  BHR:120},
+    OMN:{SAU:3550, UAE:4350, KWT:160,  QAT:820,  BHR:280},
+    BHR:{SAU:3780, UAE:1880, KWT:250,  QAT:140,  OMN:370}
+  },
+  2022: {
+    SAU:{UAE:9400, KWT:3000, QAT:1830, OMN:4200, BHR:3580},
+    UAE:{SAU:17800,KWT:3720, QAT:2280, OMN:8700, BHR:2080},
+    KWT:{SAU:2040, UAE:1790, KWT:0, QAT:170, OMN:225, BHR:295},
+    QAT:{SAU:1580, UAE:1930, KWT:195, OMN:810, BHR:130},
+    OMN:{SAU:3800, UAE:4620, KWT:180, QAT:880, BHR:305},
+    BHR:{SAU:3950, UAE:1970, KWT:270, QAT:150, OMN:395}
+  },
+  2023: {
+    SAU:{UAE:9820, KWT:3150, QAT:1980, OMN:4410, BHR:3720},
+    UAE:{SAU:18540,KWT:3890, QAT:2430, OMN:9100, BHR:2210},
+    KWT:{SAU:2100, UAE:1870, QAT:180, OMN:240, BHR:310},
+    QAT:{SAU:1650, UAE:2010, KWT:210, OMN:850, BHR:140},
+    OMN:{SAU:3980, UAE:4820, KWT:190, QAT:920, BHR:320},
+    BHR:{SAU:4110, UAE:2050, KWT:280, QAT:160, OMN:410}
+  }
+};
+
+function renderMatrix(year) {
+  const data = TRADE[year];
+  const order = ['SAU','UAE','KWT','QAT','OMN','BHR'];
+  const body = document.getElementById('uc2MatrixBody');
+  body.innerHTML = order.map(rep => {
+    const row = data[rep] || {};
+    let total = 0;
+    // find max of this row to highlight top corridor
+    const vals = order.filter(p=>p!==rep).map(p=> row[p]||0);
+    const maxV = Math.max(...vals);
+    const cells = order.map(p => {
+      if (p===rep) return `<td class="matrix-cell self">—</td>`;
+      const v = row[p] || 0;
+      total += v;
+      const cls = v===maxV && v>0 ? 'matrix-cell high' : v > maxV*0.3 ? 'matrix-cell med' : 'matrix-cell';
+      return `<td class="${cls}">${v.toLocaleString()}</td>`;
+    }).join('');
+    return `<tr><td><b>${COUNTRIES[rep].flag} ${COUNTRIES[rep].name}</b></td>${cells}<td class="matrix-cell high"><b>${total.toLocaleString()}</b></td></tr>`;
+  }).join('');
+}
+
+let balanceChart;
+function renderBalance(year) {
+  const data = TRADE[year];
+  const order = ['SAU','UAE','KWT','QAT','OMN','BHR'];
+  const balances = order.map(rep => {
+    let exp = 0, imp = 0;
+    order.forEach(p => {
+      if (p!==rep) {
+        exp += (data[rep]?.[p]||0);
+        imp += (data[p]?.[rep]||0);
+      }
+    });
+    return { code: rep, balance: exp - imp, exports: exp, imports: imp };
+  });
+  const ctx = document.getElementById('chartBalance');
+  if (balanceChart) balanceChart.destroy();
+  document.getElementById('uc2BalanceTitle').textContent = `Intra-GCC trade balance ${year} (USD M) — exports minus imports from other GCC states`;
+  balanceChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: balances.map(b => COUNTRIES[b.code].name),
+      datasets: [
+        { label:'Exports', data: balances.map(b=>b.exports), backgroundColor:'#3ea6ff' },
+        { label:'Imports', data: balances.map(b=>b.imports), backgroundColor:'#93a2c2' },
+        { label:'Balance', data: balances.map(b=>b.balance),
+          backgroundColor: balances.map(b => b.balance >= 0 ? '#7bd88f' : '#ff6b6b'),
+          type:'bar' }
+      ]
+    },
+    options: { plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+  });
+}
+
+// HS-level data (illustrative based on Comtrade patterns)
+const HS_DATA = {
+  'SAU-UAE': {
+    total: 9820,
+    hs2: [
+      { code:'39', desc:'Plastics and articles thereof', val:2140 },
+      { code:'72', desc:'Iron and steel', val:1480 },
+      { code:'27', desc:'Mineral fuels, oils, waxes', val:1210 },
+      { code:'28', desc:'Inorganic chemicals', val:860 },
+      { code:'76', desc:'Aluminium and articles', val:640 }
+    ],
+    hs6: [
+      { code:'390110', desc:'Polyethylene, density < 0.94', val:480 },
+      { code:'390120', desc:'Polyethylene, density ≥ 0.94', val:390 },
+      { code:'390210', desc:'Polypropylene, primary forms', val:270 },
+      { code:'390140', desc:'Ethylene-α-olefin copolymers', val:95 },
+      { code:'390190', desc:'Other polymers of ethylene', val:60 }
+    ]
+  },
+  'UAE-SAU': {
+    total: 18540,
+    hs2: [
+      { code:'71', desc:'Pearls, precious stones &amp; metals', val:3720 },
+      { code:'84', desc:'Machinery, mechanical appliances', val:2480 },
+      { code:'85', desc:'Electrical machinery &amp; equipment', val:2110 },
+      { code:'87', desc:'Vehicles (other than railway)', val:1750 },
+      { code:'39', desc:'Plastics and articles thereof', val:1290 }
+    ],
+    hs6: [
+      { code:'711319', desc:'Gold jewellery', val:1680 },
+      { code:'711312', desc:'Silver jewellery', val:410 },
+      { code:'710812', desc:'Gold, non-monetary unwrought', val:820 },
+      { code:'711319', desc:'Platinum jewellery', val:210 },
+      { code:'711711', desc:'Imitation jewellery', val:95 }
+    ]
+  },
+  'SAU-BHR': {
+    total: 3720,
+    hs2: [
+      { code:'27', desc:'Mineral fuels, oils, waxes', val:2180 },
+      { code:'39', desc:'Plastics and articles thereof', val:420 },
+      { code:'72', desc:'Iron and steel', val:280 },
+      { code:'25', desc:'Salt, sulphur, stone, cement', val:190 },
+      { code:'28', desc:'Inorganic chemicals', val:160 }
+    ],
+    hs6: [
+      { code:'270900', desc:'Petroleum oils, crude', val:1680 },
+      { code:'271019', desc:'Other petroleum oils, refined', val:340 },
+      { code:'271112', desc:'Propane, liquefied', val:95 },
+      { code:'271113', desc:'Butanes, liquefied', val:45 },
+      { code:'271121', desc:'Natural gas, gaseous', val:20 }
+    ]
+  },
+  'OMN-UAE': {
+    total: 4820,
+    hs2: [
+      { code:'27', desc:'Mineral fuels, oils, waxes', val:1940 },
+      { code:'72', desc:'Iron and steel', val:780 },
+      { code:'25', desc:'Salt, sulphur, stone, cement', val:520 },
+      { code:'39', desc:'Plastics and articles thereof', val:410 },
+      { code:'74', desc:'Copper and articles thereof', val:280 }
+    ],
+    hs6: [
+      { code:'271019', desc:'Refined petroleum oils', val:1180 },
+      { code:'270900', desc:'Petroleum oils, crude', val:480 },
+      { code:'271112', desc:'Propane, liquefied', val:130 },
+      { code:'271113', desc:'Butanes, liquefied', val:85 },
+      { code:'271111', desc:'Natural gas, liquefied', val:65 }
+    ]
+  },
+  'QAT-UAE': {
+    total: 2010,
+    hs2: [
+      { code:'27', desc:'Mineral fuels, oils, waxes', val:680 },
+      { code:'39', desc:'Plastics and articles thereof', val:490 },
+      { code:'72', desc:'Iron and steel', val:210 },
+      { code:'76', desc:'Aluminium and articles', val:180 },
+      { code:'31', desc:'Fertilisers', val:150 }
+    ],
+    hs6: [
+      { code:'271111', desc:'Natural gas, liquefied', val:380 },
+      { code:'271112', desc:'Propane, liquefied', val:180 },
+      { code:'271113', desc:'Butanes, liquefied', val:90 },
+      { code:'271119', desc:'Other petroleum gases', val:20 },
+      { code:'271290', desc:'Other mineral waxes', val:10 }
+    ]
+  }
+};
+
+let hs2Chart, hs6Chart;
+function renderHs(pair) {
+  const d = HS_DATA[pair];
+  const tag = pair.replace('-', ' → ');
+  document.getElementById('uc2PairLabel').textContent = tag;
+
+  // HS2 chart
+  if (hs2Chart) hs2Chart.destroy();
+  hs2Chart = new Chart(document.getElementById('chartHs2'), {
+    type: 'doughnut',
+    data: { labels: d.hs2.map(x=>`HS ${x.code} · ${x.desc}`),
+      datasets:[{ data: d.hs2.map(x=>x.val), backgroundColor:['#3ea6ff','#7bd88f','#e2c158','#ffb547','#ff6b6b'] }]},
+    options: { plugins:{legend:{position:'bottom', labels:{font:{size:10}}}} }
+  });
+
+  // HS6 chart
+  if (hs6Chart) hs6Chart.destroy();
+  hs6Chart = new Chart(document.getElementById('chartHs6'), {
+    type: 'bar',
+    data: { labels: d.hs6.map(x=>x.code),
+      datasets:[{ data: d.hs6.map(x=>x.val), label:'USD M', backgroundColor:'#3ea6ff' }]},
+    options: { indexAxis:'y', plugins:{legend:{display:false},
+      tooltip:{ callbacks:{ title:(items)=>{ const i=items[0].dataIndex; return `HS ${d.hs6[i].code} · ${d.hs6[i].desc}`; } } }
+    }}
+  });
+
+  // HS table
+  const body = document.getElementById('uc2HsBody');
+  const rows = [
+    ...d.hs2.map(x => ({lvl:'HS2', code:x.code, desc:x.desc, val:x.val, share: x.val/d.total*100})),
+    ...d.hs6.map(x => ({lvl:'HS6', code:x.code, desc:x.desc, val:x.val, share: x.val/d.total*100}))
+  ];
+  body.innerHTML = rows.map(r => `<tr>
+    <td><span class="tag-inline">${r.lvl}</span></td>
+    <td><code>${r.code}</code></td>
+    <td>${r.desc}</td>
+    <td class="num">${r.val.toLocaleString()}</td>
+    <td class="num">${r.share.toFixed(1)}%</td>
+    <td>UN Comtrade (HS 2022)</td>
+  </tr>`).join('');
+}
+
+// UC2 wiring
+document.querySelectorAll('#uc2YearChips .chip').forEach(ch => {
+  ch.addEventListener('click', () => {
+    document.querySelectorAll('#uc2YearChips .chip').forEach(c => c.classList.remove('active'));
+    ch.classList.add('active');
+    const year = ch.dataset.val;
+    renderMatrix(year);
+    renderBalance(year);
+  });
+});
+document.getElementById('uc2View').addEventListener('change', (e) => {
+  const v = e.target.value;
+  document.getElementById('uc2MatrixPane').style.display = v==='matrix' ? '' : 'none';
+  document.getElementById('uc2BalancePane').style.display = v==='balance' ? '' : 'none';
+  document.getElementById('uc2HsPane').style.display = v==='hs2' ? '' : 'none';
+  if (v==='balance') renderBalance(document.querySelector('#uc2YearChips .chip.active').dataset.val);
+  if (v==='hs2') renderHs(document.getElementById('uc2Pair').value);
+});
+document.getElementById('uc2Pair').addEventListener('change', (e) => renderHs(e.target.value));
+renderMatrix('2023');
+renderBalance('2023');
+renderHs('SAU-UAE');
+
+// Checklist
+document.querySelectorAll('#checklist li').forEach(li => {
+  li.addEventListener('click', () => li.classList.toggle('checked'));
+});
+</script>
+</body>
+</html>

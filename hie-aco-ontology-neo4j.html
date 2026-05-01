@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>HIE / ACO Ontology — Neo4j Visualization</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+  header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  }
+  header h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  .mode-toggle {
+    display: flex; background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden;
+  }
+  .mode-toggle button {
+    padding: 6px 14px; font-size: 12px; cursor: pointer;
+    background: transparent; color: var(--muted); border: none;
+    transition: all 0.15s;
+  }
+  .mode-toggle button.active { background: #1f6feb; color: #fff; }
+  .mode-toggle button:hover:not(.active) { color: var(--text); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 300px 1fr 360px;
+    height: calc(100vh - 57px);
+  }
+  .sidebar, .rightpanel {
+    background: var(--panel);
+    overflow-y: auto;
+    padding: 14px;
+  }
+  .sidebar { border-right: 1px solid var(--border); }
+  .rightpanel { border-left: 1px solid var(--border); font-size: 13px; line-height: 1.55; }
+  .sidebar h3, .rightpanel h3 {
+    margin: 10px 0 8px; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .phase-item, .traversal-item {
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #0d1117;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+    transition: all 0.15s;
+  }
+  .phase-item:hover, .traversal-item:hover { border-color: var(--accent); }
+  .phase-item.active, .traversal-item.active { background: #1f6feb22; border-color: var(--accent); }
+  .phase-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .phase-title { flex: 1; line-height: 1.3; }
+  .phase-num { color: var(--muted); font-size: 11px; }
+
+  #network { width: 100%; height: 100%; background: #0b0f14; }
+
+  .rightpanel h2 { font-size: 14px; margin: 0 0 10px; color: var(--accent); }
+  .rightpanel p { margin: 6px 0; color: #c9d1d9; }
+  .rightpanel ul { margin: 4px 0 8px; padding-left: 18px; }
+  .rightpanel li { margin: 3px 0; color: #c9d1d9; font-size: 12px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; margin-right: 4px; margin-top: 4px;
+    background: #1f6feb33; color: var(--accent); border: 1px solid #1f6feb66;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+    padding: 3px 0;
+  }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .controls { display: flex; gap: 6px; margin-top: 8px; }
+  .controls button {
+    flex: 1; padding: 6px 8px; font-size: 11px; cursor: pointer;
+    background: #21262d; color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px;
+  }
+  .controls button:hover { border-color: var(--accent); }
+  code, pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  pre.cypher {
+    background: #010409;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+    color: #79c0ff;
+    overflow-x: auto;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .finding {
+    background: #0d1117;
+    border-left: 3px solid #ff7b72;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 12px;
+    border-radius: 0 6px 6px 0;
+  }
+  .finding.good { border-left-color: #7ee787; }
+  .finding.warn { border-left-color: #ffd700; }
+  .finding b { color: var(--text); }
+
+  .patient-card {
+    background: linear-gradient(135deg, #1f6feb22, #58a6ff11);
+    border: 1px solid #1f6feb66;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .patient-card h4 { margin: 0 0 4px; font-size: 13px; }
+  .patient-card div { font-size: 11px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>HIE / ACO AI Ontology — Neo4j Graph</h1>
+    <div class="sub">Schema · Phases 1–6 · Patient Journey with Live Traversals</div>
+  </div>
+  <div class="mode-toggle">
+    <button id="btnSchema" class="active" onclick="switchMode('schema')">Ontology View</button>
+    <button id="btnJourney" onclick="switchMode('journey')">Patient Journey</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <div class="sidebar" id="sidebar">
+    <div id="schemaSidebar">
+      <h3>Build Phases</h3>
+      <div id="phaseList"></div>
+      <h3 style="margin-top:18px;">Controls</h3>
+      <div class="controls">
+        <button onclick="showAll()">Show All</button>
+        <button onclick="network.fit()">Fit</button>
+      </div>
+      <h3 style="margin-top:18px;">Node Categories</h3>
+      <div id="legend"></div>
+    </div>
+
+    <div id="journeySidebar" style="display:none;">
+      <div class="patient-card">
+        <h4>Sarah Ahmed · P001</h4>
+        <div>
+          67F · Saudi National · EMPI-001<br>
+          Attributed to: Dr. Khalid Al-Rashid (PCP)<br>
+          ACO: Riyadh Health Network<br>
+          Contract: CCHI MSSP · since 2024-01-01<br>
+          HCC-RAF: <b style="color:#ffd700">1.58</b> · Rising risk
+        </div>
+      </div>
+
+      <h3>Traversal Queries</h3>
+      <div id="traversalList"></div>
+
+      <h3 style="margin-top:18px;">Controls</h3>
+      <div class="controls">
+        <button onclick="resetJourneyHighlight()">Reset</button>
+        <button onclick="network.fit()">Fit</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="network"></div>
+
+  <div class="rightpanel" id="detail">
+    <h2>Loading…</h2>
+  </div>
+
+</div>
+
+<script>
+/* ===================== PHASE METADATA (schema view) ===================== */
+const PHASES = {
+  1: { color: "#58a6ff", title: "EMPI + FHIR R5 Ingestion", duration: "Months 1–2",
+       objective: "Unify patient identity and establish FHIR R5 source-of-truth across HIS/EMR/LIS/pharmacy feeds.",
+       deliverables: ["EMPI with probabilistic+deterministic matching","FHIR R5 repo (HAPI/Azure/Firely)","HL7 v2→FHIR converter (ADT, ORM, ORU, MDM)","CDA/CCDA parser","Kafka per-resource topics","Consent + purpose-of-use at gateway"],
+       nodes: "Patient, Provider, Organization, Encounter, Consent, EMPI, Location, Device",
+       tech: ["HAPI FHIR","Kafka","NiFi","Mirth","Azure FHIR"],
+       metrics: ["≥95% EMPI match","≤5 min HL7→FHIR latency","100% consent coverage"],
+       risks: "Duplicate IDs across facilities · terminology inconsistencies · HL7 v2 quirks" },
+  2: { color: "#7ee787", title: "OMOP CDM + Quality Measure Engine", duration: "Months 2–4",
+       objective: "Analytical twin in OMOP v5.4 + automated HEDIS/MIPS/STAR/ACO-REACH measures via CQL.",
+       deliverables: ["FHIR→OMOP ETL","Concept normalization (SNOMED/LOINC/RxNorm/ICD-10)","CQL engine (cqf-ruler)","Nightly measure evaluation","OHDSI ATLAS","Data-quality dashboard"],
+       nodes: "OMOP.Person, VisitOccurrence, ConditionOccurrence, Measurement, DrugExposure, ProcedureOccurrence, Cost, Measure, CQLEngine",
+       tech: ["OMOP 5.4","OHDSI HADES","ATLAS","cqf-ruler","dbt"],
+       metrics: ["100% clinical resources mapped","≥85 automated measures","<24h event-to-measure lag"],
+       risks: "Vocabulary drift · regional code gaps · CQL maintenance" },
+  3: { color: "#f0883e", title: "Knowledge Graph — Patient-360 + Attribution", duration: "Months 3–5",
+       objective: "Neo4j reasoning spine: Patient-360, ACO attribution, care-gap graph, HCC/RAF mapping.",
+       deliverables: ["Neo4j ontology v1","Debezium CDC → Cypher sinks","Attribution engine","HCC/RAF mapping","CareGap ↔ Measure links","Graph APIs"],
+       nodes: "CarePlan, CareGap, ACO, Coverage, HCC, RiskScore, Condition, Medication, Procedure, Observation, Attribution, SDoH",
+       tech: ["Neo4j 5.x","Debezium","Kafka Connect","APOC","GDS"],
+       metrics: ["100% attribution coverage","Weekly HCC recapture","<200ms p95 Patient-360"],
+       risks: "Scale · consent filtering · stale attribution windows" },
+  4: { color: "#bc8cff", title: "Vector Store + RAG over Clinical Notes", duration: "Months 4–6",
+       objective: "Unlock unstructured data — discharge summaries, progress notes, radiology, pathology.",
+       deliverables: ["Document ingestion","PHI-aware chunking","Clinical embeddings in pgvector/Milvus","Hybrid BM25 + dense + graph retrieval","LLM router","Provenance + consent tags"],
+       nodes: "ClinicalNote, DocumentRef, VectorChunk, Embedding, RAGEngine, LLM",
+       tech: ["pgvector","Milvus","MedCAT","cTAKES","LangChain","Claude"],
+       metrics: ["≥90% recall@10","100% citation coverage","Zero cross-consent leakage"],
+       risks: "Hallucination · embedding drift · de-id quality" },
+  5: { color: "#ff7b72", title: "Agentic Workflows — HCC, Care-Gaps, Referrals", duration: "Months 5–8",
+       objective: "AI agents acting on graph+vector layers to close gaps, capture HCCs, reduce leakage, automate prior-auth.",
+       deliverables: ["HCC-Capture Agent","Care-Gap Outreach Agent","Referral-Leakage Agent","Prior-Auth Agent","SDoH Outreach Agent","Human-in-the-loop orchestration"],
+       nodes: "HCCAgent, CareGapAgent, ReferralAgent, PriorAuthAgent, SDoHAgent, AgentAction",
+       tech: ["LangGraph","CrewAI","Claude tool use","Temporal","FHIR Subscriptions"],
+       metrics: ["15–25% HCC recapture lift","10–20% gap reduction","30%+ leakage reduction","<24h prior-auth on 80%"],
+       risks: "Over-coding compliance · alert fatigue · over-automation" },
+  6: { color: "#d2a8ff", title: "TCOC + Shared-Savings Dashboard", duration: "Months 7–9",
+       objective: "Close the financial loop — TCOC, benchmarks, quality-gated shared savings, exec visibility.",
+       deliverables: ["Monthly TCOC rollups","CMS+payer benchmark ingestion","Shared-savings calculator","Leakage cost attribution","Quality-to-capitation linkage","Exec dashboards"],
+       nodes: "Claim, TCOC, Benchmark, SharedSavings, QualityScore, Dashboard",
+       tech: ["dbt","Looker","PowerBI","Snowflake","FHIR Financial"],
+       metrics: ["<2% variance vs payer TCOC","10-day monthly close","±5% shared-savings forecast"],
+       risks: "Claims lag 90–180d · payer reconciliation · quality-gate disputes" }
+};
+
+const CATS = {
+  identity:  { color: "#58a6ff", label: "Identity / Demographics" },
+  clinical:  { color: "#7ee787", label: "Clinical Events" },
+  care:      { color: "#f0883e", label: "Care Management" },
+  financial: { color: "#d2a8ff", label: "Financial / Contract" },
+  knowledge: { color: "#bc8cff", label: "Knowledge / RAG" },
+  agent:     { color: "#ff7b72", label: "AI Agents" },
+  quality:   { color: "#ffd700", label: "Quality / Measures" },
+  infra:     { color: "#8b949e", label: "Infrastructure" }
+};
+
+/* ===================== SCHEMA NODES + EDGES ===================== */
+const schemaNodes = [
+  { id: "Patient", label: "Patient", cat: "identity", phase: 1, title: "FHIR Patient" },
+  { id: "Provider", label: "Provider", cat: "identity", phase: 1, title: "FHIR Practitioner · NPI" },
+  { id: "Organization", label: "Organization", cat: "identity", phase: 1, title: "Hospital · clinic · ACO" },
+  { id: "Encounter", label: "Encounter", cat: "clinical", phase: 1, title: "Visit · admission · telehealth" },
+  { id: "Consent", label: "Consent", cat: "infra", phase: 1 },
+  { id: "EMPI", label: "EMPI", cat: "infra", phase: 1 },
+  { id: "Location", label: "Location", cat: "identity", phase: 1 },
+  { id: "Device", label: "Device", cat: "clinical", phase: 1 },
+  { id: "FHIR_Repo", label: "FHIR R5 Repo", cat: "infra", phase: 1 },
+
+  { id: "OMOP_Person", label: "OMOP Person", cat: "infra", phase: 2 },
+  { id: "OMOP_Visit", label: "VisitOccurrence", cat: "clinical", phase: 2 },
+  { id: "OMOP_Condition", label: "ConditionOccurrence", cat: "clinical", phase: 2 },
+  { id: "OMOP_Measurement", label: "Measurement", cat: "clinical", phase: 2 },
+  { id: "OMOP_Drug", label: "DrugExposure", cat: "clinical", phase: 2 },
+  { id: "OMOP_Procedure", label: "ProcedureOccurrence", cat: "clinical", phase: 2 },
+  { id: "OMOP_Cost", label: "Cost", cat: "financial", phase: 2 },
+  { id: "Measure", label: "Measure", cat: "quality", phase: 2, title: "HEDIS/MIPS/STAR/REACH" },
+  { id: "CQLEngine", label: "CQL Engine", cat: "infra", phase: 2 },
+
+  { id: "Condition", label: "Condition", cat: "clinical", phase: 3 },
+  { id: "Medication", label: "Medication", cat: "clinical", phase: 3 },
+  { id: "Procedure", label: "Procedure", cat: "clinical", phase: 3 },
+  { id: "Observation", label: "Observation", cat: "clinical", phase: 3 },
+  { id: "CarePlan", label: "CarePlan", cat: "care", phase: 3 },
+  { id: "CareGap", label: "CareGap", cat: "care", phase: 3 },
+  { id: "ACO", label: "ACO", cat: "financial", phase: 3 },
+  { id: "Coverage", label: "Coverage", cat: "financial", phase: 3 },
+  { id: "HCC", label: "HCC", cat: "financial", phase: 3, title: "Hierarchical Condition Category" },
+  { id: "RiskScore", label: "RiskScore", cat: "quality", phase: 3 },
+  { id: "Attribution", label: "Attribution", cat: "financial", phase: 3 },
+  { id: "SDoH", label: "SDoH", cat: "care", phase: 3 },
+
+  { id: "ClinicalNote", label: "ClinicalNote", cat: "knowledge", phase: 4 },
+  { id: "DocumentRef", label: "DocumentRef", cat: "knowledge", phase: 4 },
+  { id: "VectorChunk", label: "VectorChunk", cat: "knowledge", phase: 4 },
+  { id: "Embedding", label: "Embedding", cat: "knowledge", phase: 4 },
+  { id: "RAGEngine", label: "RAG Engine", cat: "knowledge", phase: 4 },
+  { id: "LLM", label: "LLM", cat: "knowledge", phase: 4 },
+
+  { id: "HCCAgent", label: "HCC-Capture Agent", cat: "agent", phase: 5 },
+  { id: "CareGapAgent", label: "Care-Gap Agent", cat: "agent", phase: 5 },
+  { id: "ReferralAgent", label: "Referral Agent", cat: "agent", phase: 5 },
+  { id: "PriorAuthAgent", label: "Prior-Auth Agent", cat: "agent", phase: 5 },
+  { id: "SDoHAgent", label: "SDoH Agent", cat: "agent", phase: 5 },
+  { id: "AgentAction", label: "AgentAction", cat: "agent", phase: 5 },
+
+  { id: "Claim", label: "Claim", cat: "financial", phase: 6 },
+  { id: "TCOC", label: "TCOC", cat: "financial", phase: 6 },
+  { id: "Benchmark", label: "Benchmark", cat: "financial", phase: 6 },
+  { id: "SharedSavings", label: "SharedSavings", cat: "financial", phase: 6 },
+  { id: "QualityScore", label: "QualityScore", cat: "quality", phase: 6 },
+  { id: "Dashboard", label: "Dashboard", cat: "infra", phase: 6 }
+];
+
+const schemaEdges = [
+  { from: "Patient", to: "EMPI", label: "IDENTIFIED_BY", phase: 1 },
+  { from: "Patient", to: "Consent", label: "CONSENTED", phase: 1 },
+  { from: "Patient", to: "Encounter", label: "HAS_ENCOUNTER", phase: 1 },
+  { from: "Encounter", to: "Provider", label: "PERFORMED_BY", phase: 1 },
+  { from: "Encounter", to: "Organization", label: "AT_FACILITY", phase: 1 },
+  { from: "Encounter", to: "Location", label: "LOCATED_AT", phase: 1 },
+  { from: "Patient", to: "Device", label: "USES_DEVICE", phase: 1 },
+  { from: "Provider", to: "Organization", label: "MEMBER_OF", phase: 1 },
+  { from: "FHIR_Repo", to: "Patient", label: "STORES", phase: 1, dashes: true },
+  { from: "FHIR_Repo", to: "Encounter", label: "STORES", phase: 1, dashes: true },
+
+  { from: "Patient", to: "OMOP_Person", label: "ETL_TO", phase: 2, dashes: true },
+  { from: "Encounter", to: "OMOP_Visit", label: "ETL_TO", phase: 2, dashes: true },
+  { from: "OMOP_Person", to: "OMOP_Visit", label: "HAS_VISIT", phase: 2 },
+  { from: "OMOP_Visit", to: "OMOP_Condition", label: "DIAGNOSED_WITH", phase: 2 },
+  { from: "OMOP_Visit", to: "OMOP_Measurement", label: "YIELDED", phase: 2 },
+  { from: "OMOP_Visit", to: "OMOP_Drug", label: "PRESCRIBED", phase: 2 },
+  { from: "OMOP_Visit", to: "OMOP_Procedure", label: "INCLUDES", phase: 2 },
+  { from: "OMOP_Visit", to: "OMOP_Cost", label: "INCURRED_COST", phase: 2 },
+  { from: "CQLEngine", to: "OMOP_Person", label: "EVALUATES", phase: 2, dashes: true },
+  { from: "CQLEngine", to: "Measure", label: "COMPUTES", phase: 2 },
+
+  { from: "Patient", to: "Condition", label: "HAS_CONDITION", phase: 3 },
+  { from: "Patient", to: "Medication", label: "ON_MEDICATION", phase: 3 },
+  { from: "Patient", to: "Observation", label: "OBSERVED", phase: 3 },
+  { from: "Encounter", to: "Condition", label: "DIAGNOSED_WITH", phase: 3 },
+  { from: "Encounter", to: "Procedure", label: "INCLUDES_PROCEDURE", phase: 3 },
+  { from: "Encounter", to: "Observation", label: "YIELDED", phase: 3 },
+  { from: "Patient", to: "CarePlan", label: "FOLLOWS", phase: 3 },
+  { from: "CarePlan", to: "CareGap", label: "ADDRESSES", phase: 3 },
+  { from: "CareGap", to: "Measure", label: "TARGETS_MEASURE", phase: 3 },
+  { from: "Patient", to: "Attribution", label: "ATTRIBUTED_VIA", phase: 3 },
+  { from: "Attribution", to: "Provider", label: "TO_PCP", phase: 3 },
+  { from: "Provider", to: "ACO", label: "MEMBER_OF_ACO", phase: 3 },
+  { from: "ACO", to: "Coverage", label: "UNDER_CONTRACT", phase: 3 },
+  { from: "Patient", to: "Coverage", label: "ENROLLED_IN", phase: 3 },
+  { from: "Condition", to: "HCC", label: "MAPS_TO_HCC", phase: 3 },
+  { from: "Patient", to: "RiskScore", label: "HAS_RISK", phase: 3 },
+  { from: "HCC", to: "RiskScore", label: "CONTRIBUTES_TO", phase: 3 },
+  { from: "Patient", to: "SDoH", label: "SCREENED_FOR", phase: 3 },
+  { from: "Medication", to: "Condition", label: "TREATS", phase: 3 },
+  { from: "Observation", to: "Condition", label: "INDICATES", phase: 3 },
+
+  { from: "Encounter", to: "DocumentRef", label: "PRODUCED", phase: 4 },
+  { from: "DocumentRef", to: "ClinicalNote", label: "CONTAINS", phase: 4 },
+  { from: "ClinicalNote", to: "VectorChunk", label: "CHUNKED_TO", phase: 4 },
+  { from: "VectorChunk", to: "Embedding", label: "HAS_EMBEDDING", phase: 4 },
+  { from: "RAGEngine", to: "Embedding", label: "RETRIEVES", phase: 4, dashes: true },
+  { from: "RAGEngine", to: "LLM", label: "GROUNDS", phase: 4 },
+  { from: "LLM", to: "Patient", label: "ANSWERS_ABOUT", phase: 4, dashes: true },
+
+  { from: "HCCAgent", to: "Condition", label: "SUSPECTS", phase: 5, dashes: true },
+  { from: "HCCAgent", to: "HCC", label: "RECAPTURES", phase: 5 },
+  { from: "HCCAgent", to: "ClinicalNote", label: "MINES", phase: 5, dashes: true },
+  { from: "CareGapAgent", to: "CareGap", label: "CLOSES", phase: 5 },
+  { from: "ReferralAgent", to: "Provider", label: "REDIRECTS_TO", phase: 5, dashes: true },
+  { from: "ReferralAgent", to: "ACO", label: "PROTECTS", phase: 5, dashes: true },
+  { from: "PriorAuthAgent", to: "Procedure", label: "AUTHORIZES", phase: 5 },
+  { from: "SDoHAgent", to: "SDoH", label: "ADDRESSES", phase: 5 },
+  { from: "HCCAgent", to: "AgentAction", label: "LOGS", phase: 5 },
+  { from: "CareGapAgent", to: "AgentAction", label: "LOGS", phase: 5 },
+  { from: "ReferralAgent", to: "AgentAction", label: "LOGS", phase: 5 },
+  { from: "PriorAuthAgent", to: "AgentAction", label: "LOGS", phase: 5 },
+  { from: "SDoHAgent", to: "AgentAction", label: "LOGS", phase: 5 },
+
+  { from: "Encounter", to: "Claim", label: "RESULTED_IN", phase: 6 },
+  { from: "Claim", to: "TCOC", label: "ROLLED_UP_TO", phase: 6 },
+  { from: "Patient", to: "TCOC", label: "FOR_PATIENT", phase: 6 },
+  { from: "TCOC", to: "Benchmark", label: "COMPARED_TO", phase: 6 },
+  { from: "TCOC", to: "SharedSavings", label: "FEEDS", phase: 6 },
+  { from: "Measure", to: "QualityScore", label: "ROLLS_INTO", phase: 6 },
+  { from: "QualityScore", to: "SharedSavings", label: "GATES", phase: 6 },
+  { from: "SharedSavings", to: "ACO", label: "PAID_TO", phase: 6 },
+  { from: "Dashboard", to: "TCOC", label: "VISUALIZES", phase: 6, dashes: true },
+  { from: "Dashboard", to: "QualityScore", label: "VISUALIZES", phase: 6, dashes: true },
+  { from: "Dashboard", to: "SharedSavings", label: "VISUALIZES", phase: 6, dashes: true }
+];
+
+/* ===================== PATIENT JOURNEY — SYNTHETIC DATA ===================== */
+// Patient: Sarah Ahmed, 67F, T2DM + CKD Stage 3 + HTN + HLD
+// Attributed to Riyadh Health Network ACO under CCHI MSSP-equivalent contract
+
+const journeyNodes = [
+  // Identity
+  { id: "P001", label: "Sarah Ahmed\n67F", cat: "identity", title: "Patient P001 · EMPI-001 · Saudi National\nDOB 1958-06-14 · MRN-RHN-44210" },
+  { id: "EMPI1", label: "EMPI-001", cat: "infra", title: "Cross-facility identity match\nKFMC, KSMC, RCC sources reconciled" },
+  { id: "Cons1", label: "Consent TPO", cat: "infra", title: "Treatment · Payment · Operations\nValid through 2027-01-01" },
+
+  // Providers + Orgs
+  { id: "Dr1", label: "Dr. Khalid\n(PCP)", cat: "identity", title: "NPI 1245367 · Family Medicine\nACO member" },
+  { id: "Dr2", label: "Dr. Sara\n(Cardio)", cat: "identity", title: "NPI 1829431 · Cardiology\n⚠ OUT-OF-NETWORK" },
+  { id: "Dr3", label: "Dr. Omar\n(Nephro)", cat: "identity", title: "NPI 1734512 · Nephrology\nACO member — referral pending" },
+  { id: "Dr4", label: "Dr. Fatima\n(Ophtha)", cat: "identity", title: "NPI 1923884 · Ophthalmology\nACO member" },
+  { id: "Org1", label: "King Fahad\nClinic", cat: "identity", title: "Primary care facility · ACO member" },
+  { id: "Org2", label: "Riyadh Cardiac\nCenter", cat: "identity", title: "⚠ OUT-OF-NETWORK specialty center" },
+  { id: "Org3", label: "Riyadh Health\nNetwork ACO", cat: "financial", title: "ACO contract holder · 48,200 lives" },
+  { id: "Org4", label: "KSMC ED", cat: "identity", title: "King Saud Medical City · in-ACO" },
+
+  // Coverage + Attribution
+  { id: "Cov1", label: "CCHI MSSP\nContract", cat: "financial", title: "Contract RHN-2024-001 · shared savings 50/50\nEffective 2024-01-01" },
+  { id: "Att1", label: "Attribution", cat: "financial", title: "P001 → Dr1 → Org3 → Cov1\nSince 2024-01-01" },
+
+  // Encounters (timeline)
+  { id: "E1", label: "AWV\n2026-01-15", cat: "clinical", title: "Annual Wellness Visit\nProvider: Dr1 · Org1" },
+  { id: "E2", label: "ED Visit\n2026-02-10", cat: "clinical", title: "Emergency · chest pain\nFacility: Org4 (in-ACO)" },
+  { id: "E3", label: "Cardio Consult\n2026-02-20", cat: "clinical", title: "⚠ LEAKAGE — Dr2 at Org2\nOut-of-network" },
+  { id: "E4", label: "PCP F/U\n2026-03-15", cat: "clinical", title: "Follow-up · Dr1 · Org1" },
+
+  // Conditions
+  { id: "C1", label: "T2DM w/compl.\nE11.65", cat: "clinical", title: "Type 2 DM with chronic complications\nSNOMED 44054006 · active" },
+  { id: "C2", label: "CKD Stage 3\nN18.3", cat: "clinical", title: "Chronic Kidney Disease Stage 3\nSNOMED 433144002 · active" },
+  { id: "C3", label: "HTN\nI10", cat: "clinical", title: "Essential Hypertension · active" },
+  { id: "C4", label: "HLD\nE78.5", cat: "clinical", title: "Hyperlipidemia · active" },
+  { id: "C5", label: "⚠ Diabetic\nRetinopathy?", cat: "clinical", title: "SUSPECT — mentioned in PCP note\nNOT YET CODED in problem list\nPotential HCC 122 recapture" },
+
+  // Medications
+  { id: "M1", label: "Metformin\n1000mg BID", cat: "clinical", title: "RxNorm 860975 · adherence 89%" },
+  { id: "M2", label: "Lisinopril\n20mg daily", cat: "clinical", title: "RxNorm 314076 · adherence 92%" },
+  { id: "M3", label: "Atorvastatin\n40mg daily", cat: "clinical", title: "RxNorm 617312 · adherence 78%" },
+
+  // Observations
+  { id: "O1", label: "HbA1c 8.4%\n2025-10", cat: "clinical", title: "LOINC 4548-4 · elevated\n⚠ Next due — gap open" },
+  { id: "O2", label: "eGFR 42\n2026-01", cat: "clinical", title: "LOINC 98979-8 · consistent with CKD 3" },
+  { id: "O3", label: "BP 148/92\n2026-03", cat: "clinical", title: "LOINC 85354-9 · uncontrolled" },
+  { id: "O4", label: "LDL 85\n2026-01", cat: "clinical", title: "LOINC 13457-7 · at goal" },
+
+  // Procedures
+  { id: "Proc1", label: "Echocardiogram\n2026-02-20", cat: "clinical", title: "CPT 93306 · at Org2 (OON)\n$1,850" },
+
+  // Notes + RAG
+  { id: "Note1", label: "PCP Note\nE1", cat: "knowledge", title: "AWV progress note 2026-01-15\nContains retinopathy mention" },
+  { id: "Note2", label: "Cardio Note\nE3", cat: "knowledge", title: "Consult note from OON cardiologist" },
+  { id: "VC1", label: "Chunk:\n\"dot hemorrhages\nfundoscopic\"", cat: "knowledge", title: "Text span: 'noted dot hemorrhages on\nfundoscopic exam — suggest ophtho referral'\nEmbedded + retrievable" },
+  { id: "RAG1", label: "RAG Engine", cat: "knowledge", title: "Hybrid retrieval over Sarah's notes" },
+  { id: "LLM1", label: "Claude", cat: "knowledge", title: "LLM grounded on retrieved chunks" },
+
+  // Care Plan + Gaps
+  { id: "CP1", label: "Diabetes\nCare Plan", cat: "care", title: "Comprehensive diabetes care plan" },
+  { id: "G1", label: "⚠ HbA1c\nOverdue", cat: "care", title: "Last HbA1c > 6 months ago\nMeasure: CDC-E" },
+  { id: "G2", label: "⚠ Eye Exam\nOverdue", cat: "care", title: "No diabetic retinal exam in 12 months\nMeasure: CDC-Eye" },
+  { id: "G3", label: "⚠ Nephro\nReferral", cat: "care", title: "Referral placed — not yet scheduled" },
+  { id: "G4", label: "⚠ Pneumo\nVaccine", cat: "care", title: "Missing for age 65+\nMeasure: CMS-127" },
+
+  // Measures + Quality
+  { id: "Mea1", label: "Measure\nCDC-E (HbA1c)", cat: "quality", title: "HEDIS Diabetes: HbA1c control" },
+  { id: "Mea2", label: "Measure\nCDC-Eye", cat: "quality", title: "HEDIS Diabetes: annual eye exam" },
+  { id: "Mea3", label: "Measure\nCBP (BP)", cat: "quality", title: "HEDIS: Controlling Blood Pressure" },
+  { id: "QS1", label: "Quality Score\n72/100", cat: "quality", title: "⚠ Below 75% quality gate\nthreatens shared-savings eligibility" },
+
+  // HCC + Risk
+  { id: "HCC1", label: "HCC 18\nDM w/ compl", cat: "financial", title: "RAF weight 0.302 · captured" },
+  { id: "HCC2", label: "HCC 138\nCKD 3", cat: "financial", title: "RAF weight 0.127 · captured" },
+  { id: "HCC3", label: "⚠ HCC 122\nRetinopathy", cat: "financial", title: "RAF weight 0.210 · RECAPTURE OPPORTUNITY\nEvidence in Note1/VC1" },
+  { id: "RS1", label: "RAF 1.58\n(rising)", cat: "quality", title: "HCC-RAF total · rising-risk flag" },
+
+  // SDoH
+  { id: "SD1", label: "SDoH: Transport\nBarrier", cat: "care", title: "Screened positive · limits appointment adherence\nZ59.82" },
+
+  // Agents + Actions
+  { id: "AgHCC", label: "HCC Agent", cat: "agent", title: "Scans notes for suspect HCC conditions" },
+  { id: "AgGap", label: "CareGap Agent", cat: "agent", title: "Drives gap closure outreach" },
+  { id: "AgRef", label: "Referral Agent", cat: "agent", title: "Detects network leakage" },
+  { id: "AgSDoH", label: "SDoH Agent", cat: "agent", title: "Resources referrals" },
+
+  { id: "AA1", label: "Action: Flag\nHCC 122", cat: "agent", title: "2026-03-20 · HCC Agent → Dr1 inbox\nEvidence pack: Note1 + VC1" },
+  { id: "AA2", label: "Action: Schedule\nEye + HbA1c", cat: "agent", title: "2026-03-21 · CareGap Agent auto-booked\nDr4 + lab order" },
+  { id: "AA3", label: "Action: In-network\nRedirect", cat: "agent", title: "2026-02-22 · Referral Agent alerted\nSuggest Dr-network cardiologist" },
+  { id: "AA4", label: "Action: Transport\nVoucher", cat: "agent", title: "2026-03-22 · SDoH Agent dispatched" },
+
+  // Claims + TCOC
+  { id: "Cl1", label: "Claim E1\n$210", cat: "financial", title: "AWV · in-network" },
+  { id: "Cl2", label: "Claim E2\n$2,800", cat: "financial", title: "ED visit · in-network" },
+  { id: "Cl3", label: "Claim E3\n$4,200", cat: "financial", title: "⚠ LEAKAGE · out-of-network cardiology\n(consult + echo)" },
+  { id: "Cl4", label: "Claim E4\n$180", cat: "financial", title: "PCP follow-up" },
+  { id: "TCOC1", label: "TCOC Q1'26\n$8,450 PMPM", cat: "financial", title: "⚠ Above benchmark · driven by leakage + ED" },
+  { id: "BM1", label: "Benchmark\n$6,200 PMPM", cat: "financial", title: "CMS regional benchmark for 67F with T2DM+CKD" },
+  { id: "SS1", label: "Shared Savings\nAt Risk", cat: "financial", title: "⚠ TCOC variance + quality score < gate" },
+
+  // LLM query example
+  { id: "DASH", label: "Exec\nDashboard", cat: "infra", title: "Population · ACO leadership view" }
+];
+
+const journeyEdges = [
+  // Identity
+  { from: "P001", to: "EMPI1", label: "IDENTIFIED_BY" },
+  { from: "P001", to: "Cons1", label: "CONSENTED" },
+  { from: "P001", to: "Att1", label: "ATTRIBUTED_VIA" },
+  { from: "Att1", to: "Dr1", label: "TO_PCP" },
+  { from: "Dr1", to: "Org3", label: "MEMBER_OF_ACO" },
+  { from: "Dr3", to: "Org3", label: "MEMBER_OF_ACO" },
+  { from: "Dr4", to: "Org3", label: "MEMBER_OF_ACO" },
+  { from: "Dr1", to: "Org1", label: "PRACTICES_AT" },
+  { from: "Dr2", to: "Org2", label: "PRACTICES_AT" },
+  { from: "Org3", to: "Cov1", label: "UNDER_CONTRACT" },
+  { from: "P001", to: "Cov1", label: "ENROLLED_IN" },
+
+  // Encounters
+  { from: "P001", to: "E1", label: "HAS_ENCOUNTER" },
+  { from: "P001", to: "E2", label: "HAS_ENCOUNTER" },
+  { from: "P001", to: "E3", label: "HAS_ENCOUNTER" },
+  { from: "P001", to: "E4", label: "HAS_ENCOUNTER" },
+  { from: "E1", to: "Dr1", label: "PERFORMED_BY" },
+  { from: "E1", to: "Org1", label: "AT_FACILITY" },
+  { from: "E2", to: "Org4", label: "AT_FACILITY" },
+  { from: "E3", to: "Dr2", label: "PERFORMED_BY", color: "#ff7b72" },
+  { from: "E3", to: "Org2", label: "AT_FACILITY", color: "#ff7b72" },
+  { from: "E4", to: "Dr1", label: "PERFORMED_BY" },
+  { from: "E4", to: "Org1", label: "AT_FACILITY" },
+
+  // Conditions
+  { from: "P001", to: "C1", label: "HAS_CONDITION" },
+  { from: "P001", to: "C2", label: "HAS_CONDITION" },
+  { from: "P001", to: "C3", label: "HAS_CONDITION" },
+  { from: "P001", to: "C4", label: "HAS_CONDITION" },
+  { from: "E1", to: "C1", label: "DIAGNOSED_WITH" },
+  { from: "E1", to: "C2", label: "DIAGNOSED_WITH" },
+  { from: "E1", to: "C3", label: "DIAGNOSED_WITH" },
+  { from: "E1", to: "C4", label: "DIAGNOSED_WITH" },
+
+  // Meds
+  { from: "P001", to: "M1", label: "ON_MEDICATION" },
+  { from: "P001", to: "M2", label: "ON_MEDICATION" },
+  { from: "P001", to: "M3", label: "ON_MEDICATION" },
+  { from: "M1", to: "C1", label: "TREATS" },
+  { from: "M2", to: "C3", label: "TREATS" },
+  { from: "M3", to: "C4", label: "TREATS" },
+
+  // Observations
+  { from: "P001", to: "O1", label: "OBSERVED" },
+  { from: "P001", to: "O2", label: "OBSERVED" },
+  { from: "P001", to: "O3", label: "OBSERVED" },
+  { from: "P001", to: "O4", label: "OBSERVED" },
+  { from: "O1", to: "C1", label: "INDICATES" },
+  { from: "O2", to: "C2", label: "INDICATES" },
+  { from: "O3", to: "C3", label: "INDICATES" },
+
+  // Procedure
+  { from: "E3", to: "Proc1", label: "INCLUDES_PROCEDURE" },
+
+  // Notes + RAG
+  { from: "E1", to: "Note1", label: "PRODUCED" },
+  { from: "E3", to: "Note2", label: "PRODUCED" },
+  { from: "Note1", to: "VC1", label: "CHUNKED_TO" },
+  { from: "RAG1", to: "VC1", label: "RETRIEVES", dashes: true },
+  { from: "RAG1", to: "LLM1", label: "GROUNDS" },
+
+  // Care Plan + Gaps
+  { from: "P001", to: "CP1", label: "FOLLOWS" },
+  { from: "CP1", to: "G1", label: "ADDRESSES" },
+  { from: "CP1", to: "G2", label: "ADDRESSES" },
+  { from: "CP1", to: "G3", label: "ADDRESSES" },
+  { from: "CP1", to: "G4", label: "ADDRESSES" },
+  { from: "G1", to: "Mea1", label: "TARGETS" },
+  { from: "G2", to: "Mea2", label: "TARGETS" },
+
+  // HCC
+  { from: "C1", to: "HCC1", label: "MAPS_TO_HCC" },
+  { from: "C2", to: "HCC2", label: "MAPS_TO_HCC" },
+  { from: "C5", to: "HCC3", label: "MAPS_TO_HCC", color: "#ff7b72" },
+  { from: "HCC1", to: "RS1", label: "CONTRIBUTES" },
+  { from: "HCC2", to: "RS1", label: "CONTRIBUTES" },
+  { from: "P001", to: "RS1", label: "HAS_RISK" },
+
+  // SDoH
+  { from: "P001", to: "SD1", label: "SCREENED_FOR" },
+
+  // Agents
+  { from: "AgHCC", to: "VC1", label: "MINES", dashes: true },
+  { from: "AgHCC", to: "C5", label: "SUSPECTS", color: "#ff7b72" },
+  { from: "AgHCC", to: "AA1", label: "LOGS" },
+  { from: "AgGap", to: "G1", label: "CLOSES" },
+  { from: "AgGap", to: "G2", label: "CLOSES" },
+  { from: "AgGap", to: "AA2", label: "LOGS" },
+  { from: "AgGap", to: "Dr4", label: "BOOKS_WITH", dashes: true },
+  { from: "AgRef", to: "E3", label: "FLAGS", color: "#ff7b72" },
+  { from: "AgRef", to: "AA3", label: "LOGS" },
+  { from: "AgSDoH", to: "SD1", label: "ADDRESSES" },
+  { from: "AgSDoH", to: "AA4", label: "LOGS" },
+
+  // Claims + TCOC
+  { from: "E1", to: "Cl1", label: "RESULTED_IN" },
+  { from: "E2", to: "Cl2", label: "RESULTED_IN" },
+  { from: "E3", to: "Cl3", label: "RESULTED_IN", color: "#ff7b72" },
+  { from: "E4", to: "Cl4", label: "RESULTED_IN" },
+  { from: "Cl1", to: "TCOC1", label: "ROLLS_UP" },
+  { from: "Cl2", to: "TCOC1", label: "ROLLS_UP" },
+  { from: "Cl3", to: "TCOC1", label: "ROLLS_UP", color: "#ff7b72" },
+  { from: "Cl4", to: "TCOC1", label: "ROLLS_UP" },
+  { from: "P001", to: "TCOC1", label: "FOR_PATIENT" },
+  { from: "TCOC1", to: "BM1", label: "COMPARED_TO" },
+  { from: "TCOC1", to: "SS1", label: "FEEDS" },
+  { from: "Mea1", to: "QS1", label: "ROLLS_INTO" },
+  { from: "Mea2", to: "QS1", label: "ROLLS_INTO" },
+  { from: "Mea3", to: "QS1", label: "ROLLS_INTO" },
+  { from: "QS1", to: "SS1", label: "GATES" },
+  { from: "SS1", to: "Org3", label: "IMPACTS" },
+
+  { from: "DASH", to: "TCOC1", label: "VISUALIZES", dashes: true },
+  { from: "DASH", to: "QS1", label: "VISUALIZES", dashes: true }
+];
+
+/* ===================== TRAVERSAL QUERIES ===================== */
+const TRAVERSALS = [
+  {
+    id: "t1",
+    title: "Patient-360 View",
+    color: "#58a6ff",
+    cypher: `MATCH (p:Patient {id:'P001'})-[r*1..2]-(n)
+RETURN p, r, n`,
+    description: "Fetches everything within 2 hops of Sarah — encounters, conditions, meds, observations, care plan, attribution, coverage, risk score, SDoH, claims. The classic Patient-360 view.",
+    highlight: { nodes: ["P001","EMPI1","Cons1","Att1","Cov1","E1","E2","E3","E4","C1","C2","C3","C4","M1","M2","M3","O1","O2","O3","O4","CP1","RS1","SD1","TCOC1","Dr1"], color: "#58a6ff" },
+    findings: [
+      { level: "info", text: "<b>4 active conditions</b> · 3 chronic meds · 4 encounters in 90 days" },
+      { level: "warn", text: "Rising-risk flag at <b>RAF 1.58</b> — above cohort median" },
+      { level: "info", text: "ACO attribution to Dr. Khalid active since 2024-01-01" }
+    ]
+  },
+  {
+    id: "t2",
+    title: "HCC Recapture Opportunity",
+    color: "#ff7b72",
+    cypher: `// Find conditions mentioned in notes but not yet in active problem list
+MATCH (p:Patient {id:'P001'})-[:HAS_ENCOUNTER]->(e:Encounter)-[:PRODUCED]->(:Note)-[:CHUNKED_TO]->(vc:VectorChunk)
+MATCH (:HCCAgent)-[:MINES]->(vc)-[:SUSPECTS_CONDITION]->(c:Condition)
+WHERE NOT EXISTS { (p)-[:HAS_CONDITION]->(c) }
+WITH c, vc
+MATCH (c)-[:MAPS_TO_HCC]->(h:HCC)
+RETURN c.display, h.code, h.raf_weight, vc.text AS evidence`,
+    description: "HCC-Capture Agent mines Sarah's PCP note (Note1 → VC1) and finds 'dot hemorrhages on fundoscopic exam' — suspecting diabetic retinopathy (HCC 122, RAF 0.210). The condition is NOT in her active problem list, so it's an unbilled HCC recapture opportunity.",
+    highlight: { nodes: ["P001","E1","Note1","VC1","AgHCC","C5","HCC3","AA1","Dr1"], edges: true, color: "#ff7b72" },
+    findings: [
+      { level: "warn", text: "<b>HCC 122 (Proliferative Retinopathy)</b> suspected from PCP note — NOT CODED" },
+      { level: "warn", text: "Potential RAF lift: <b>+0.210</b> (~$1,400/yr revenue for this single patient)" },
+      { level: "good", text: "Agent action AA1 logged · evidence pack sent to Dr. Khalid's inbox · human-in-the-loop confirms before coding" }
+    ]
+  },
+  {
+    id: "t3",
+    title: "Network Leakage Detection",
+    color: "#ff7b72",
+    cypher: `MATCH (p:Patient {id:'P001'})-[:ATTRIBUTED_VIA]->(:Attribution)-[:TO_PCP]->(:Provider)-[:MEMBER_OF_ACO]->(aco:ACO)
+MATCH (p)-[:HAS_ENCOUNTER]->(e:Encounter)-[:AT_FACILITY]->(fac:Organization)
+WHERE NOT (fac)<-[:PRACTICES_AT]-(:Provider)-[:MEMBER_OF_ACO]->(aco)
+MATCH (e)-[:RESULTED_IN]->(cl:Claim)
+RETURN e.date, fac.name, cl.amount AS leaked_spend`,
+    description: "Traces from Sarah → ACO → contract, then finds encounters at facilities NOT contracted with her ACO. The Feb 20 cardiology consult at Riyadh Cardiac Center is an out-of-network leak — $4,200 spend outside ACO control.",
+    highlight: { nodes: ["P001","Att1","Dr1","Org3","E3","Dr2","Org2","Proc1","Cl3","AgRef","AA3"], color: "#ff7b72" },
+    findings: [
+      { level: "warn", text: "Encounter <b>E3 on 2026-02-20</b> at Riyadh Cardiac Center — out-of-network" },
+      { level: "warn", text: "<b>$4,200 leaked</b> (consult + echocardiogram)" },
+      { level: "good", text: "Referral Agent flagged this · in-network cardiologist suggested for next visit (AA3)" }
+    ]
+  },
+  {
+    id: "t4",
+    title: "Care Gap → Closure Path",
+    color: "#f0883e",
+    cypher: `MATCH (p:Patient {id:'P001'})-[:FOLLOWS]->(:CarePlan)-[:ADDRESSES]->(g:CareGap)
+OPTIONAL MATCH (g)-[:TARGETS]->(m:Measure)
+OPTIONAL MATCH (ag:CareGapAgent)-[:CLOSES]->(g)
+OPTIONAL MATCH (ag)-[:LOGS]->(a:AgentAction)
+RETURN g.name, m.id, ag.name, a.description`,
+    description: "Walks from Sarah's care plan out to all open gaps, their target measures, and the agent actions lined up to close them. Shows which gaps are actively being worked and which remain untouched.",
+    highlight: { nodes: ["P001","CP1","G1","G2","G3","G4","Mea1","Mea2","AgGap","AA2","Dr4"], color: "#f0883e" },
+    findings: [
+      { level: "warn", text: "<b>4 open gaps</b>: HbA1c, eye exam, nephrology referral, pneumococcal vaccine" },
+      { level: "good", text: "Care-Gap Agent auto-scheduled HbA1c + eye exam with Dr. Fatima (AA2)" },
+      { level: "warn", text: "Nephrology referral + pneumococcal vaccine <b>still need outreach</b>" }
+    ]
+  },
+  {
+    id: "t5",
+    title: "HCC-RAF Risk Contribution",
+    color: "#ffd700",
+    cypher: `MATCH (p:Patient {id:'P001'})-[:HAS_RISK]->(rs:RiskScore)
+MATCH (p)-[:HAS_CONDITION]->(c:Condition)-[:MAPS_TO_HCC]->(h:HCC)-[:CONTRIBUTES]->(rs)
+RETURN c.display, h.code, h.raf_weight
+ORDER BY h.raf_weight DESC`,
+    description: "Decomposes Sarah's HCC-RAF score into contributing conditions. Answers 'why is this patient high-risk?' — foundational for risk-adjusted capitation and rising-risk cohort management.",
+    highlight: { nodes: ["P001","C1","C2","HCC1","HCC2","RS1"], color: "#ffd700" },
+    findings: [
+      { level: "info", text: "<b>HCC 18</b> (Diabetes w/ complications) · RAF 0.302 — dominant driver" },
+      { level: "info", text: "<b>HCC 138</b> (CKD 3) · RAF 0.127" },
+      { level: "warn", text: "If retinopathy (HCC 122) is confirmed, total RAF → <b>1.79</b> (+13%)" }
+    ]
+  },
+  {
+    id: "t6",
+    title: "TCOC → Shared Savings Path",
+    color: "#d2a8ff",
+    cypher: `MATCH (p:Patient {id:'P001'})-[:HAS_ENCOUNTER]->(e:Encounter)-[:RESULTED_IN]->(cl:Claim)
+MATCH (cl)-[:ROLLS_UP]->(tcoc:TCOC)-[:COMPARED_TO]->(bm:Benchmark)
+MATCH (tcoc)-[:FEEDS]->(ss:SharedSavings)
+MATCH (:QualityScore)-[:GATES]->(ss)
+RETURN tcoc.pmpm, bm.pmpm, (bm.pmpm - tcoc.pmpm) AS delta, ss.status`,
+    description: "Traces every claim for Sarah up through TCOC → benchmark comparison → shared-savings impact, gated by the ACO's quality score. Shows the full financial accountability chain.",
+    highlight: { nodes: ["P001","E1","E2","E3","E4","Cl1","Cl2","Cl3","Cl4","TCOC1","BM1","QS1","SS1","Org3"], color: "#d2a8ff" },
+    findings: [
+      { level: "warn", text: "TCOC <b>$8,450 PMPM</b> vs benchmark <b>$6,200</b> → −$2,250 PMPM variance" },
+      { level: "warn", text: "Quality score <b>72/100</b> below 75% gate → shared savings at risk" },
+      { level: "info", text: "Closing gaps + recapturing HCC 122 could flip both signals positive" }
+    ]
+  },
+  {
+    id: "t7",
+    title: "All AI Agent Actions on Patient",
+    color: "#ff7b72",
+    cypher: `MATCH (p:Patient {id:'P001'})
+MATCH (ag)-[:LOGS]->(a:AgentAction)
+WHERE (ag)-[*1..3]-(p)
+RETURN ag.name, a.description, a.timestamp
+ORDER BY a.timestamp DESC`,
+    description: "Audit trail of every AI-driven action touching Sarah's record — HCC flagging, gap closure, leakage redirection, SDoH outreach. Every action is human-reviewable and logged for compliance.",
+    highlight: { nodes: ["P001","AgHCC","AgGap","AgRef","AgSDoH","AA1","AA2","AA3","AA4"], color: "#ff7b72" },
+    findings: [
+      { level: "info", text: "<b>4 agent actions</b> in the last 30 days — all require human confirmation before clinical/financial impact" },
+      { level: "good", text: "AA1 (HCC flag) + AA2 (gap booking) + AA3 (leakage alert) + AA4 (transport voucher)" },
+      { level: "info", text: "Each action logs provenance: source data, model version, confidence, reviewer" }
+    ]
+  }
+];
+
+/* ===================== VIS.JS SETUP ===================== */
+const visNodes = new vis.DataSet([]);
+const visEdges = new vis.DataSet([]);
+
+const container = document.getElementById("network");
+const options = {
+  nodes: { borderWidth: 2, scaling: { min: 15, max: 30 } },
+  edges: { width: 1.2, selectionWidth: 2.5 },
+  physics: {
+    barnesHut: {
+      gravitationalConstant: -7000,
+      centralGravity: 0.25,
+      springLength: 150,
+      springConstant: 0.04,
+      damping: 0.35
+    },
+    stabilization: { iterations: 250 }
+  },
+  interaction: { hover: true, tooltipDelay: 150 }
+};
+
+const network = new vis.Network(container, { nodes: visNodes, edges: visEdges }, options);
+
+/* ===================== MODE SWITCHING ===================== */
+let currentMode = "schema";
+let currentNodeData = [], currentEdgeData = [];
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById("btnSchema").classList.toggle("active", mode === "schema");
+  document.getElementById("btnJourney").classList.toggle("active", mode === "journey");
+  document.getElementById("schemaSidebar").style.display = mode === "schema" ? "" : "none";
+  document.getElementById("journeySidebar").style.display = mode === "journey" ? "" : "none";
+
+  if (mode === "schema") loadSchema();
+  else loadJourney();
+}
+
+function loadSchema() {
+  currentNodeData = schemaNodes;
+  currentEdgeData = schemaEdges;
+  renderGraph();
+  showAll();
+}
+
+function loadJourney() {
+  currentNodeData = journeyNodes;
+  currentEdgeData = journeyEdges;
+  renderGraph();
+  document.getElementById("detail").innerHTML = `
+    <h2>Patient Journey · Synthetic Demo</h2>
+    <p>Sarah Ahmed is a synthetic ACO-attributed patient with T2DM + CKD + HTN. Her graph spans <b>${journeyNodes.length} nodes</b> and <b>${journeyEdges.length} relationships</b> across identity, clinical events, care management, RAG, AI agents, and financials.</p>
+    <h3>Try a Traversal</h3>
+    <p>Click any query on the left to see: (1) the Cypher, (2) the highlighted path in the graph, and (3) clinical/financial findings.</p>
+    <h3>Key Insights Embedded</h3>
+    <ul>
+      <li><b>HCC recapture</b> — undiagnosed retinopathy in clinical note</li>
+      <li><b>Network leakage</b> — out-of-network cardiology consult</li>
+      <li><b>Open care gaps</b> — HbA1c, eye exam, nephrology, pneumococcal</li>
+      <li><b>SDoH barrier</b> — transportation limiting adherence</li>
+      <li><b>Financial stress</b> — TCOC above benchmark, quality below gate</li>
+    </ul>
+  `;
+}
+
+function renderGraph() {
+  const nodeData = currentNodeData.map(n => ({
+    id: n.id,
+    label: n.label,
+    title: (n.title || n.label) + (n.phase ? `\n\n[Phase ${n.phase}]` : ""),
+    color: {
+      background: CATS[n.cat].color,
+      border: "#0b0f14",
+      highlight: { background: "#ffffff", border: CATS[n.cat].color }
+    },
+    font: { color: "#0b0f14", size: 12, face: "Segoe UI", bold: "600", multi: true },
+    shape: "dot",
+    size: 22,
+    borderWidth: 2,
+    phase: n.phase,
+    cat: n.cat
+  }));
+
+  const edgeData = currentEdgeData.map((e, i) => ({
+    id: "e" + i,
+    from: e.from,
+    to: e.to,
+    label: e.label,
+    arrows: "to",
+    dashes: !!e.dashes,
+    color: {
+      color: e.color || "#444c56",
+      highlight: e.color || "#58a6ff",
+      hover: e.color || "#58a6ff"
+    },
+    font: { color: "#8b949e", size: 10, strokeWidth: 0, align: "middle" },
+    smooth: { type: "dynamic" },
+    phase: e.phase
+  }));
+
+  visNodes.clear(); visEdges.clear();
+  visNodes.add(nodeData);
+  visEdges.add(edgeData);
+  setTimeout(() => network.fit(), 400);
+}
+
+/* ===================== SCHEMA: PHASE LIST + LEGEND ===================== */
+const phaseList = document.getElementById("phaseList");
+Object.entries(PHASES).forEach(([num, p]) => {
+  const div = document.createElement("div");
+  div.className = "phase-item";
+  div.innerHTML = `
+    <span class="phase-dot" style="background:${p.color}"></span>
+    <span class="phase-title">${p.title}</span>
+    <span class="phase-num">P${num}</span>
+  `;
+  div.onclick = () => selectPhase(parseInt(num));
+  phaseList.appendChild(div);
+});
+
+const legend = document.getElementById("legend");
+Object.values(CATS).forEach(c => {
+  const d = document.createElement("div");
+  d.className = "legend-item";
+  d.innerHTML = `<span class="legend-dot" style="background:${c.color}"></span>${c.label}`;
+  legend.appendChild(d);
+});
+
+function selectPhase(num) {
+  document.querySelectorAll(".phase-item").forEach((el, i) => el.classList.toggle("active", i === num - 1));
+  const nUpdates = currentNodeData.map(n => ({
+    id: n.id,
+    color: {
+      background: n.phase === num ? CATS[n.cat].color : (n.phase < num ? CATS[n.cat].color : "#21262d"),
+      border: n.phase === num ? "#ffffff" : "#0b0f14",
+      highlight: { background: "#ffffff", border: CATS[n.cat].color }
+    },
+    borderWidth: n.phase === num ? 3 : 2
+  }));
+  visNodes.update(nUpdates);
+  const eUpdates = currentEdgeData.map((e, i) => ({
+    id: "e" + i,
+    color: {
+      color: e.phase === num ? PHASES[num].color : (e.phase < num ? "#444c56" : "#1a1f26"),
+      highlight: PHASES[e.phase].color
+    },
+    width: e.phase === num ? 2 : 1
+  }));
+  visEdges.update(eUpdates);
+  renderPhaseDetail(num);
+}
+
+function showAll() {
+  document.querySelectorAll(".phase-item").forEach(el => el.classList.remove("active"));
+  visNodes.update(currentNodeData.map(n => ({
+    id: n.id,
+    color: { background: CATS[n.cat].color, border: "#0b0f14", highlight: { background: "#ffffff", border: CATS[n.cat].color } },
+    borderWidth: 2
+  })));
+  visEdges.update(currentEdgeData.map((e, i) => ({
+    id: "e" + i,
+    color: { color: e.color || "#444c56", highlight: PHASES[e.phase]?.color || "#58a6ff" },
+    width: 1.2
+  })));
+  if (currentMode === "schema") {
+    document.getElementById("detail").innerHTML = `
+      <h2>All Phases Visible</h2>
+      <p>Complete HIE / ACO ontology across Phases 1–6. Click a phase on the left to drill in, or click a node to inspect.</p>
+      <h3>Total</h3>
+      <p>${schemaNodes.length} node types · ${schemaEdges.length} relationships · 6 phases</p>
+    `;
+  }
+}
+
+function renderPhaseDetail(num) {
+  const p = PHASES[num];
+  document.getElementById("detail").innerHTML = `
+    <h2 style="color:${p.color}">Phase ${num} · ${p.title}</h2>
+    <p style="color:var(--muted);font-size:12px;">${p.duration}</p>
+    <h3>Objective</h3><p>${p.objective}</p>
+    <h3>Deliverables</h3><ul>${p.deliverables.map(d => `<li>${d}</li>`).join("")}</ul>
+    <h3>Graph Entities</h3><p style="font-family:ui-monospace,monospace;font-size:12px;color:#7ee787;">${p.nodes}</p>
+    <h3>Tech Stack</h3><div>${p.tech.map(t => `<span class="badge">${t}</span>`).join("")}</div>
+    <h3>Success Metrics</h3><ul>${p.metrics.map(m => `<li>${m}</li>`).join("")}</ul>
+    <h3>Key Risks</h3><p style="color:#ff7b72;">${p.risks}</p>
+  `;
+}
+
+/* ===================== JOURNEY: TRAVERSAL LIST ===================== */
+const travList = document.getElementById("traversalList");
+TRAVERSALS.forEach(t => {
+  const div = document.createElement("div");
+  div.className = "traversal-item";
+  div.innerHTML = `
+    <span class="phase-dot" style="background:${t.color}"></span>
+    <span class="phase-title">${t.title}</span>
+  `;
+  div.onclick = () => runTraversal(t.id);
+  travList.appendChild(div);
+});
+
+function runTraversal(id) {
+  const t = TRAVERSALS.find(x => x.id === id);
+  document.querySelectorAll(".traversal-item").forEach(el => {
+    el.classList.toggle("active", el.querySelector(".phase-title").textContent === t.title);
+  });
+
+  // Dim all, then brighten the highlighted subgraph
+  const hSet = new Set(t.highlight.nodes);
+  visNodes.update(currentNodeData.map(n => ({
+    id: n.id,
+    color: {
+      background: hSet.has(n.id) ? CATS[n.cat].color : "#1a1f26",
+      border: hSet.has(n.id) ? t.color : "#0b0f14",
+      highlight: { background: "#ffffff", border: t.color }
+    },
+    borderWidth: hSet.has(n.id) ? 3 : 1,
+    font: { color: hSet.has(n.id) ? "#0b0f14" : "#484f58", size: 12, face: "Segoe UI", bold: "600", multi: true }
+  })));
+  visEdges.update(currentEdgeData.map((e, i) => {
+    const active = hSet.has(e.from) && hSet.has(e.to);
+    return {
+      id: "e" + i,
+      color: { color: active ? t.color : "#1a1f26", highlight: t.color },
+      width: active ? 2.5 : 0.5,
+      font: { color: active ? "#c9d1d9" : "#30363d", size: 10, strokeWidth: 0, align: "middle" }
+    };
+  }));
+
+  // Focus the view
+  network.fit({ nodes: t.highlight.nodes, animation: { duration: 700, easingFunction: "easeInOutQuad" } });
+
+  // Right panel
+  document.getElementById("detail").innerHTML = `
+    <h2 style="color:${t.color}">${t.title}</h2>
+    <h3>Description</h3><p>${t.description}</p>
+    <h3>Cypher</h3>
+    <pre class="cypher">${t.cypher}</pre>
+    <h3>Findings</h3>
+    ${t.findings.map(f => `<div class="finding ${f.level}">${f.text}</div>`).join("")}
+    <h3>Nodes in Result</h3>
+    <p style="font-size:11px;color:var(--muted);">${t.highlight.nodes.length} nodes highlighted · ${t.highlight.nodes.join(", ")}</p>
+  `;
+}
+
+function resetJourneyHighlight() {
+  document.querySelectorAll(".traversal-item").forEach(el => el.classList.remove("active"));
+  visNodes.update(currentNodeData.map(n => ({
+    id: n.id,
+    color: { background: CATS[n.cat].color, border: "#0b0f14", highlight: { background: "#ffffff", border: CATS[n.cat].color } },
+    borderWidth: 2,
+    font: { color: "#0b0f14", size: 12, face: "Segoe UI", bold: "600", multi: true }
+  })));
+  visEdges.update(currentEdgeData.map((e, i) => ({
+    id: "e" + i,
+    color: { color: e.color || "#444c56", highlight: "#58a6ff" },
+    width: 1.2,
+    font: { color: "#8b949e", size: 10, strokeWidth: 0, align: "middle" }
+  })));
+  loadJourney();
+}
+
+/* ===================== NODE CLICK HANDLER ===================== */
+network.on("click", params => {
+  if (params.nodes.length > 0) {
+    const nodeId = params.nodes[0];
+    const n = currentNodeData.find(x => x.id === nodeId);
+    if (!n) return;
+    const inbound = currentEdgeData.filter(e => e.to === nodeId);
+    const outbound = currentEdgeData.filter(e => e.from === nodeId);
+    document.getElementById("detail").innerHTML = `
+      <h2 style="color:${CATS[n.cat].color}">${n.label.replace(/\n/g, " · ")}</h2>
+      <p style="color:var(--muted);font-size:12px;">
+        ${CATS[n.cat].label}${n.phase ? " · Phase " + n.phase : ""} · ID: <code>${n.id}</code>
+      </p>
+      <h3>Description</h3>
+      <p>${(n.title || n.label).replace(/\n/g, "<br>")}</p>
+      <h3>Outbound (${outbound.length})</h3>
+      <ul>${outbound.map(e => `<li><code>-[:${e.label}]-></code> <b>${e.to}</b></li>`).join("") || "<li style='color:var(--muted)'>none</li>"}</ul>
+      <h3>Inbound (${inbound.length})</h3>
+      <ul>${inbound.map(e => `<li><b>${e.from}</b> <code>-[:${e.label}]-></code></li>`).join("") || "<li style='color:var(--muted)'>none</li>"}</ul>
+    `;
+  }
+});
+
+/* ===================== INITIALIZE ===================== */
+loadSchema();
+</script>
+
+</body>
+</html>

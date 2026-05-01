@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>إدارة خدمات الأفراد العسكريين المتقاعدين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy-900: #0B1F3A;
+    --navy-800: #102A4C;
+    --navy-700: #16375F;
+    --gold-500: #C9A449;
+    --gold-400: #D9B968;
+    --gold-300: #E8CF94;
+    --sand-100: #F6F1E7;
+    --sand-50:  #FBF8F1;
+    --ink-900:  #0A0A0A;
+    --ink-700:  #2A2A2A;
+    --ink-500:  #5A5A5A;
+    --line:     rgba(201,164,73,0.25);
+    --shadow:   0 20px 40px -20px rgba(11,31,58,0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Tajawal', system-ui, sans-serif;
+    background: var(--sand-50);
+    color: var(--ink-900);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Decorative background pattern ---------- */
+  .pattern-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.04;
+    background-image:
+      radial-gradient(circle at 20% 30%, var(--navy-900) 1px, transparent 1px),
+      radial-gradient(circle at 80% 70%, var(--gold-500) 1px, transparent 1px);
+    background-size: 60px 60px, 90px 90px;
+    pointer-events: none;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    background:
+      linear-gradient(135deg, rgba(11,31,58,0.92), rgba(16,42,76,0.85)),
+      radial-gradient(circle at 70% 30%, rgba(201,164,73,0.3), transparent 60%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 80%;
+    height: 180%;
+    background: radial-gradient(ellipse, rgba(201,164,73,0.15), transparent 60%);
+    transform: rotate(-15deg);
+    pointer-events: none;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(to top, var(--sand-50), transparent);
+  }
+
+  .hero-inner {
+    position: relative;
+    z-index: 2;
+    max-width: 1100px;
+    text-align: center;
+  }
+
+  .crest {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 110px;
+    height: 110px;
+    margin: 0 auto 2rem;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--gold-500), var(--gold-300));
+    box-shadow:
+      0 0 0 4px rgba(255,255,255,0.1),
+      0 0 0 12px rgba(201,164,73,0.2),
+      0 20px 40px rgba(0,0,0,0.3);
+    position: relative;
+  }
+
+  .crest svg { width: 60px; height: 60px; fill: var(--navy-900); }
+
+  .hero-kicker {
+    display: inline-block;
+    padding: 0.5rem 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--gold-500);
+    border-radius: 999px;
+    color: var(--gold-300);
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .hero h1 {
+    font-family: 'Amiri', serif;
+    font-size: clamp(2.2rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, #fff 30%, var(--gold-300) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hero p.lead {
+    font-size: clamp(1rem, 2vw, 1.3rem);
+    max-width: 720px;
+    margin: 0 auto 3rem;
+    color: rgba(255,255,255,0.85);
+    font-weight: 300;
+  }
+
+  .hero-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 2rem auto;
+    max-width: 300px;
+  }
+
+  .hero-divider span {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to left, transparent, var(--gold-500), transparent);
+  }
+
+  .hero-divider svg { width: 20px; height: 20px; fill: var(--gold-500); }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 2rem;
+    max-width: 900px;
+    margin: 3rem auto 0;
+  }
+
+  .hero-stat {
+    padding: 1.5rem 1rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(201,164,73,0.25);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+  }
+
+  .hero-stat .num {
+    font-family: 'Amiri', serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--gold-400);
+    display: block;
+  }
+
+  .hero-stat .label {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.75);
+    margin-top: 0.3rem;
+  }
+
+  /* ---------- Section wrapper ---------- */
+  .section {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 6rem 2rem;
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .eyebrow {
+    display: inline-block;
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    color: var(--gold-500);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .section-header h2 {
+    font-family: 'Amiri', serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    color: var(--navy-900);
+    margin-bottom: 1rem;
+    position: relative;
+    display: inline-block;
+  }
+
+  .section-header h2::after {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 3px;
+    background: var(--gold-500);
+    margin: 1rem auto 0;
+  }
+
+  .section-header p {
+    max-width: 700px;
+    margin: 0 auto;
+    color: var(--ink-500);
+    font-size: 1.05rem;
+  }
+
+  /* ---------- Journey Timeline ---------- */
+  .journey {
+    background: linear-gradient(180deg, var(--sand-50), var(--sand-100));
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .timeline {
+    position: relative;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 0;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 50%;
+    width: 2px;
+    background: linear-gradient(to bottom, transparent, var(--gold-500), transparent);
+    transform: translateX(1px);
+  }
+
+  .timeline-item {
+    position: relative;
+    width: 50%;
+    padding: 1.5rem 2.5rem;
+  }
+
+  .timeline-item:nth-child(odd) {
+    margin-right: 50%;
+    text-align: left;
+  }
+
+  .timeline-item:nth-child(even) {
+    margin-right: 0;
+    margin-left: 50%;
+    text-align: right;
+  }
+
+  .timeline-dot {
+    position: absolute;
+    top: 2rem;
+    width: 20px;
+    height: 20px;
+    background: var(--gold-500);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px var(--sand-50), 0 0 0 6px var(--gold-500);
+  }
+
+  .timeline-item:nth-child(odd) .timeline-dot { left: -10px; }
+  .timeline-item:nth-child(even) .timeline-dot { right: -10px; }
+
+  .timeline-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    border-right: 3px solid var(--gold-500);
+  }
+
+  .timeline-card h4 {
+    color: var(--navy-900);
+    font-family: 'Amiri', serif;
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .timeline-card p { color: var(--ink-500); font-size: 0.95rem; }
+
+  .timeline-phase {
+    display: inline-block;
+    background: var(--navy-900);
+    color: var(--gold-300);
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.8rem;
+  }
+
+  /* ---------- Sectors ---------- */
+  .sectors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+  }
+
+  .sector-card {
+    position: relative;
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    border: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sector-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 30px 60px -20px rgba(11,31,58,0.45);
+  }
+
+  .sector-card-header {
+    position: relative;
+    padding: 2rem;
+    color: white;
+    overflow: hidden;
+  }
+
+  .sector-card-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--navy-900), var(--navy-700));
+    z-index: 0;
+  }
+
+  .sector-card-header::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -20%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(201,164,73,0.3), transparent 70%);
+    z-index: 0;
+  }
+
+  .sector-card:nth-child(2) .sector-card-header::before { background: linear-gradient(135deg, #1A3A5F, #2A5680); }
+  .sector-card:nth-child(3) .sector-card-header::before { background: linear-gradient(135deg, #1F4A3A, #2F6B55); }
+  .sector-card:nth-child(4) .sector-card-header::before { background: linear-gradient(135deg, #5A3D1F, #8B6131); }
+  .sector-card:nth-child(5) .sector-card-header::before { background: linear-gradient(135deg, #3D1F4F, #5F2F75); }
+
+  .sector-card-header > * { position: relative; z-index: 1; }
+
+  .sector-num {
+    font-family: 'Amiri', serif;
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--gold-400);
+    line-height: 1;
+    opacity: 0.8;
+  }
+
+  .sector-icon {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 1rem;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(201,164,73,0.2);
+    border: 1px solid var(--gold-500);
+  }
+
+  .sector-icon svg { width: 100%; height: 100%; fill: var(--gold-400); }
+
+  .sector-card-header h3 {
+    font-family: 'Amiri', serif;
+    font-size: 1.6rem;
+    margin: 0.5rem 0;
+  }
+
+  .sector-goal {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.85);
+    font-style: italic;
+  }
+
+  .sector-card-body {
+    padding: 2rem;
+    flex: 1;
+  }
+
+  .sector-card-body ul { list-style: none; }
+
+  .sector-card-body li {
+    position: relative;
+    padding: 1rem 0;
+    padding-right: 2rem;
+    border-bottom: 1px dashed var(--line);
+  }
+
+  .sector-card-body li:last-child { border-bottom: none; }
+
+  .sector-card-body li::before {
+    content: '';
+    position: absolute;
+    top: 1.4rem;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--gold-500);
+    border-radius: 50%;
+    background: white;
+  }
+
+  .sector-card-body li strong {
+    display: block;
+    color: var(--navy-900);
+    font-size: 1rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .sector-card-body li span {
+    font-size: 0.88rem;
+    color: var(--ink-500);
+    line-height: 1.6;
+  }
+
+  /* ---------- Enhancement Callouts ---------- */
+  .enhancements {
+    background: var(--navy-900);
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .enhancements::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40%;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(201,164,73,0.15), transparent 70%);
+  }
+
+  .enhancements .section-header h2 { color: white; }
+  .enhancements .section-header p { color: rgba(255,255,255,0.75); }
+
+  .enhance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .enhance-card {
+    padding: 2.5rem 2rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,164,73,0.2);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    transition: border-color 0.3s, background 0.3s;
+  }
+
+  .enhance-card:hover {
+    border-color: var(--gold-500);
+    background: rgba(201,164,73,0.05);
+  }
+
+  .enhance-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    background: var(--gold-500);
+    color: var(--navy-900);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+
+  .enhance-card h3 {
+    font-family: 'Amiri', serif;
+    font-size: 1.5rem;
+    color: var(--gold-300);
+    margin-bottom: 1rem;
+  }
+
+  .enhance-card p {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.95rem;
+  }
+
+  /* ---------- Footer ---------- */
+  .site-footer {
+    background: var(--ink-900);
+    color: rgba(255,255,255,0.7);
+    padding: 3rem 2rem;
+    text-align: center;
+    border-top: 3px solid var(--gold-500);
+  }
+
+  .site-footer .motto {
+    font-family: 'Amiri', serif;
+    font-size: 1.4rem;
+    color: var(--gold-400);
+    margin-bottom: 0.5rem;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 768px) {
+    .timeline::before { right: 20px; }
+    .timeline-item,
+    .timeline-item:nth-child(odd),
+    .timeline-item:nth-child(even) {
+      width: 100%;
+      margin: 0;
+      padding-right: 50px;
+      padding-left: 0;
+      text-align: right;
+    }
+    .timeline-item:nth-child(odd) .timeline-dot,
+    .timeline-item:nth-child(even) .timeline-dot {
+      right: 10px;
+      left: auto;
+    }
+  }
+
+  /* ---------- Scroll reveal ---------- */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<div class="pattern-bg"></div>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="crest">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 16l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/></svg>
+    </div>
+    <span class="hero-kicker">رؤية · شرف · التزام</span>
+    <h1>إدارة خدمات الأفراد<br/>العسكريين المتقاعدين</h1>
+    <p class="lead">
+      هيكل تنظيمي متكامل يرافق المحارب القديم في رحلته من الخدمة الفعلية إلى الاستقرار المدني،
+      مبنيّ على التقدير والدقة والكرامة.
+    </p>
+
+    <div class="hero-divider">
+      <span></span>
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 7L2 14l10 5 10-5-10-5z"/></svg>
+      <span></span>
+    </div>
+
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="num">05</span>
+        <span class="label">قطاعات رئيسية</span>
+      </div>
+      <div class="hero-stat">
+        <span class="num">15+</span>
+        <span class="label">وحدة متخصصة</span>
+      </div>
+      <div class="hero-stat">
+        <span class="num">24</span>
+        <span class="label">شهراً للتأهيل المسبق</span>
+      </div>
+      <div class="hero-stat">
+        <span class="num">∞</span>
+        <span class="label">التزام مدى الحياة</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ JOURNEY TIMELINE ============ -->
+<section class="journey section">
+  <div class="section-header reveal">
+    <span class="eyebrow">رحلة المحارب القديم</span>
+    <h2>خمس محطات في رحلة التكريم</h2>
+    <p>من أول جلسة إرشاد قبل التقاعد، وحتى استقراره الكامل في الحياة المدنية — كل محطة مصمّمة بعناية.</p>
+  </div>
+
+  <div class="timeline">
+    <div class="timeline-item reveal">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <span class="timeline-phase">المرحلة ١</span>
+        <h4>الاستعداد والانتقال</h4>
+        <p>قبل ١٢–٢٤ شهراً من التقاعد: إرشاد، تأهيل مدني، ومتابعة إجراءات الخدمة.</p>
+      </div>
+    </div>
+    <div class="timeline-item reveal">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <span class="timeline-phase">المرحلة ٢</span>
+        <h4>تأمين المزايا</h4>
+        <p>ضبط الراتب التقاعدي، حماية المستفيدين، وإدارة المطالبات القانونية.</p>
+      </div>
+    </div>
+    <div class="timeline-item reveal">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <span class="timeline-phase">المرحلة ٣</span>
+        <h4>الصحة والعافية</h4>
+        <p>تنسيق الرعاية الطبية والنفسية، ومتابعة حالات جرحى الحرب باهتمام خاص.</p>
+      </div>
+    </div>
+    <div class="timeline-item reveal">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <span class="timeline-phase">المرحلة ٤</span>
+        <h4>الاندماج والتمكين</h4>
+        <p>تعليم، إسكان، وتوظيف عبر شراكات مدروسة مع القطاعين العام والخاص.</p>
+      </div>
+    </div>
+    <div class="timeline-item reveal">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <span class="timeline-phase">المرحلة ٥</span>
+        <h4>الارتباط مدى الحياة</h4>
+        <p>مجتمع الزملاء، التكريم المستمر، والبيانات الذكية لخدمة استباقية.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTORS ============ -->
+<section class="section">
+  <div class="section-header reveal">
+    <span class="eyebrow">الهيكل التنظيمي</span>
+    <h2>القطاعات الخمسة الرئيسية</h2>
+    <p>كل قطاع مصمّم لخدمة محور محدد من رحلة المتقاعد، بوحدات متخصصة وأهداف قابلة للقياس.</p>
+  </div>
+
+  <div class="sectors-grid">
+
+    <!-- 1 -->
+    <article class="sector-card reveal">
+      <div class="sector-card-header">
+        <div class="sector-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 4l7.5 13h-15L12 6z"/></svg>
+        </div>
+        <div class="sector-num">٠١</div>
+        <h3>الجاهزية والانتقال</h3>
+        <p class="sector-goal">ضمان خروج سلس ومنظم من الخدمة الفعلية.</p>
+      </div>
+      <div class="sector-card-body">
+        <ul>
+          <li><strong>وحدة الإرشاد التقاعدي</strong><span>جلسات استشارية فردية قبل ١٢–٢٤ شهراً من التقاعد.</span></li>
+          <li><strong>برنامج التأهيل المدني</strong><span>ورش في السيرة الذاتية، المقابلات، وريادة الأعمال.</span></li>
+          <li><strong>مكتب إنهاء الإجراءات</strong><span>قائمة المراجعة النهائية وإصدار شهادات الخدمة.</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- 2 -->
+    <article class="sector-card reveal">
+      <div class="sector-card-header">
+        <div class="sector-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93V18h-2v1.93A8.01 8.01 0 014.07 13H6v-2H4.07A8.01 8.01 0 0111 4.07V6h2V4.07A8.01 8.01 0 0119.93 11H18v2h1.93A8.01 8.01 0 0113 19.93z"/></svg>
+        </div>
+        <div class="sector-num">٠٢</div>
+        <h3>المزايا والتعويضات</h3>
+        <p class="sector-goal">إدارة دقيقة للدورة المالية والقانونية للمتقاعد.</p>
+      </div>
+      <div class="sector-card-body">
+        <ul>
+          <li><strong>المعاشات والرواتب التقاعدية</strong><span>حساب وصرف الرواتب وتعديلات تكلفة المعيشة (COLA).</span></li>
+          <li><strong>خطط مزايا المستفيدين</strong><span>إدارة ملفات الورثة وضمان الحماية المالية للعائلات.</span></li>
+          <li><strong>المطالبات والدفاع</strong><span>دعم طلبات تعويض العجز المرتبط بالخدمة ومتابعة التظلمات.</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- 3 -->
+    <article class="sector-card reveal">
+      <div class="sector-card-header">
+        <div class="sector-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </div>
+        <div class="sector-num">٠٣</div>
+        <h3>الصحة والرعاية الشاملة</h3>
+        <p class="sector-goal">تنسيق الرعاية الصحية المستدامة والدعم النفسي.</p>
+      </div>
+      <div class="sector-card-body">
+        <ul>
+          <li><strong>تنسيق المنافع الطبية</strong><span>إدارة التأمين الطبي والأسنان للمتقاعدين وعائلاتهم.</span></li>
+          <li><strong>المرونة والصحة النفسية</strong><span>دعم متخصص لما بعد الصدمة وتحديات التكيف المدني.</span></li>
+          <li><strong>ارتباط جرحى الحرب</strong><span>رعاية فائقة ومستمرة لحالات الإصابات الجسيمة.</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- 4 -->
+    <article class="sector-card reveal">
+      <div class="sector-card-header">
+        <div class="sector-icon">
+          <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        </div>
+        <div class="sector-num">٠٤</div>
+        <h3>التمكين الاجتماعي والاقتصادي</h3>
+        <p class="sector-goal">إعادة الدمج المجتمعي والاستقرار الاقتصادي.</p>
+      </div>
+      <div class="sector-card-body">
+        <ul>
+          <li><strong>التعليم والتدريب</strong><span>منح دراسية، شهادات مهنية، وإعادة التأهيل.</span></li>
+          <li><strong>الإسكان والقروض</strong><span>برامج دعم الإسكان والقروض العقارية الميسرة.</span></li>
+          <li><strong>شراكات التوظيف</strong><span>مسارات توظيف «صديقة للعسكريين» مع القطاعين.</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- 5 -->
+    <article class="sector-card reveal">
+      <div class="sector-card-header">
+        <div class="sector-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+        </div>
+        <div class="sector-num">٠٥</div>
+        <h3>العمليات والبيانات</h3>
+        <p class="sector-goal">المحرك التقني والإداري الداعم لكافة الخدمات.</p>
+      </div>
+      <div class="sector-card-body">
+        <ul>
+          <li><strong>تحليل البيانات والبنية الرقمية</strong><span>قواعد بيانات آمنة وذكاء اصطناعي للتنبؤ بالاحتياجات.</span></li>
+          <li><strong>العلاقات الاستراتيجية والقانونية</strong><span>التنسيق التشريعي والمالي لاستدامة التمويل.</span></li>
+          <li><strong>شؤون التكريم والمراسم</strong><span>تخليد ذكرى الشهداء وإدارة المدافن العسكرية.</span></li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============ ENHANCEMENTS ============ -->
+<section class="enhancements section">
+  <div class="section-header reveal">
+    <span class="eyebrow" style="color: var(--gold-400)">توصيات المدير</span>
+    <h2>تعزيزات مقترحة للهيكل</h2>
+    <p>إضافتان تمنحان الهيكل عمقاً أكبر في مواجهة التحديات بعد التقاعد.</p>
+  </div>
+
+  <div class="enhance-grid">
+    <div class="enhance-card reveal">
+      <span class="enhance-badge">جديد</span>
+      <h3>وحدة «الارتباط مدى الحياة»</h3>
+      <p>
+        ضمن قطاع التمكين الاجتماعي — لربط المتقاعد بمجتمع الزملاء عبر نوادٍ ومنصات تواصل،
+        لمكافحة العزلة الاجتماعية، وهي من أبرز التحديات النفسية بعد انتهاء الخدمة.
+      </p>
+    </div>
+    <div class="enhance-card reveal">
+      <span class="enhance-badge">تعزيز</span>
+      <h3>السجل الموحّد للمتقاعد</h3>
+      <p>
+        ملف رقمي واحد يربط المزايا والصحة والتوظيف، يُدار ضمن قطاع العمليات والبيانات.
+        يمنع ازدواجية الإجراءات، ويُمكّن التحليل التنبؤي لخدمة أكثر استباقية.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer">
+  <p class="motto">«من أدّى الواجب بشرف، يستحق أن يُخدَم بكرامة»</p>
+  <p>إدارة خدمات الأفراد العسكريين المتقاعدين — مقترح هيكل تنظيمي</p>
+</footer>
+
+<script>
+  // Simple scroll-reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Platform Architecture — Two-Environment On-Premises Design</title>
+<meta name="description" content="Interactive technical architecture for a two-environment on-premises AI platform (open + air-gapped)." />
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-2: #0e1526;
+    --surface: #131a2b;
+    --surface-2: #1a2238;
+    --border: #273252;
+    --border-soft: #1f2942;
+    --text: #e6ebf5;
+    --text-dim: #9aa6c0;
+    --text-mute: #6b7693;
+
+    --open: #22d3ee;
+    --open-2: #0891b2;
+    --open-bg: rgba(34, 211, 238, 0.08);
+
+    --closed: #fbbf24;
+    --closed-2: #d97706;
+    --closed-bg: rgba(251, 191, 36, 0.08);
+
+    --bridge: #f87171;
+    --bridge-2: #b91c1c;
+    --bridge-bg: rgba(248, 113, 113, 0.08);
+
+    --cross: #a78bfa;
+    --cross-2: #7c3aed;
+    --cross-bg: rgba(167, 139, 250, 0.08);
+
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --err: #f87171;
+
+    --shadow-lg: 0 20px 50px rgba(0,0,0,0.55);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --max: 1400px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: radial-gradient(ellipse at top, #0f1930 0%, var(--bg) 60%);
+    color: var(--text);
+    line-height: 1.55;
+    font-size: 15px;
+    min-height: 100vh;
+  }
+  a { color: var(--open); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ===== Top bar ===== */
+  header.topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10, 14, 26, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; letter-spacing: 0.2px; }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--open) 0%, var(--cross) 100%);
+    display: grid; place-items: center; color: #0a0e1a; font-weight: 800; font-size: 14px;
+  }
+  .brand-title { font-size: 15px; }
+  .brand-sub { color: var(--text-mute); font-size: 12px; font-weight: 400; }
+  nav.topnav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  nav.topnav a {
+    color: var(--text-dim); font-size: 13px; padding: 8px 12px; border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+  }
+  nav.topnav a:hover { background: var(--surface); color: var(--text); text-decoration: none; }
+
+  /* ===== Hero ===== */
+  section.hero {
+    max-width: var(--max); margin: 0 auto; padding: 56px 24px 28px;
+  }
+  .hero h1 {
+    font-size: clamp(28px, 4vw, 42px); margin: 0 0 10px; letter-spacing: -0.5px;
+    background: linear-gradient(120deg, #fff 0%, #22d3ee 60%, #a78bfa 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lead { color: var(--text-dim); font-size: 16px; max-width: 780px; margin: 0 0 18px; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-mute); }
+  .hero-meta .pill {
+    padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  }
+
+  /* ===== Legend ===== */
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-top: 18px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--border); }
+  .swatch.open { background: var(--open); border-color: var(--open-2); }
+  .swatch.closed { background: var(--closed); border-color: var(--closed-2); }
+  .swatch.bridge { background: var(--bridge); border-color: var(--bridge-2); }
+  .swatch.cross { background: var(--cross); border-color: var(--cross-2); }
+
+  /* ===== Section shell ===== */
+  section.block-section {
+    max-width: var(--max); margin: 0 auto; padding: 28px 24px;
+  }
+  .section-title {
+    font-size: 11px; letter-spacing: 1.8px; color: var(--text-mute); text-transform: uppercase; margin-bottom: 8px;
+  }
+  .section-heading {
+    font-size: 24px; margin: 0 0 6px; letter-spacing: -0.3px;
+  }
+  .section-sub { color: var(--text-dim); margin: 0 0 18px; max-width: 820px; }
+
+  /* ===== Architecture diagram ===== */
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 180px 1fr;
+    gap: 18px;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    position: relative;
+  }
+  @media (max-width: 1000px) {
+    .arch { grid-template-columns: 1fr; }
+    .arch .bridge-col { order: 2; }
+  }
+
+  .env {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative;
+  }
+  .env.open { border-color: rgba(34, 211, 238, 0.35); background: linear-gradient(180deg, var(--open-bg) 0%, var(--bg-2) 80%); }
+  .env.closed { border-color: rgba(251, 191, 36, 0.35); background: linear-gradient(180deg, var(--closed-bg) 0%, var(--bg-2) 80%); }
+
+  .env-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .env-badge {
+    font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 4px; font-weight: 700;
+  }
+  .env-badge.open { background: rgba(34, 211, 238, 0.15); color: var(--open); border: 1px solid rgba(34, 211, 238, 0.3); }
+  .env-badge.closed { background: rgba(251, 191, 36, 0.15); color: var(--closed); border: 1px solid rgba(251, 191, 36, 0.3); }
+  .env-name { font-weight: 600; font-size: 15px; }
+  .env-meta { color: var(--text-mute); font-size: 12px; margin-left: auto; }
+
+  .env-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  }
+  .env-grid.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 760px) { .env-grid, .env-grid.three { grid-template-columns: 1fr; } }
+
+  .block {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s, background 0.12s;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  .block::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--border); transition: background 0.12s;
+  }
+  .block.open::before { background: var(--open); }
+  .block.closed::before { background: var(--closed); }
+  .block.bridge::before { background: var(--bridge); }
+  .block.cross::before { background: var(--cross); }
+
+  .block:hover { transform: translateY(-1px); border-color: var(--open); background: #1e283f; }
+  .block.closed:hover { border-color: var(--closed); }
+  .block.bridge:hover { border-color: var(--bridge); }
+  .block.cross:hover { border-color: var(--cross); }
+
+  .block-num {
+    font-size: 10px; color: var(--text-mute); letter-spacing: 1px; font-weight: 700;
+    display: inline-block; margin-bottom: 4px;
+  }
+  .block-name { font-weight: 600; font-size: 13.5px; line-height: 1.25; }
+  .block-tag { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+
+  .bridge-col {
+    display: flex; flex-direction: column; justify-content: center; gap: 12px;
+  }
+  .bridge-box {
+    background: linear-gradient(180deg, var(--bridge-bg) 0%, var(--bg-2) 100%);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: var(--radius);
+    padding: 14px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s;
+  }
+  .bridge-box:hover { transform: translateY(-1px); border-color: var(--bridge); }
+  .bridge-label { font-size: 10px; color: var(--bridge); letter-spacing: 1.2px; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+  .bridge-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .bridge-sub { font-size: 11px; color: var(--text-dim); }
+  .flow-arrow { font-size: 22px; color: var(--bridge); text-align: center; opacity: 0.8; }
+
+  /* ===== Cross-cutting ===== */
+  .cross-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
+  }
+  .cross-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cross);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 0.12s, transform 0.12s;
+    text-align: left;
+    width: 100%;
+    color: inherit; font: inherit;
+  }
+  .cross-card:hover { border-color: var(--cross); transform: translateY(-1px); }
+  .cross-card h4 { margin: 0 0 4px; font-size: 13.5px; }
+  .cross-card p { margin: 0; font-size: 12px; color: var(--text-dim); }
+
+  /* ===== Roadmap ===== */
+  .timeline {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+  }
+  @media (max-width: 1000px) { .timeline { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .timeline { grid-template-columns: 1fr; } }
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+  }
+  .phase-num { font-size: 10px; color: var(--text-mute); letter-spacing: 1.5px; text-transform: uppercase; }
+  .phase-title { font-weight: 600; font-size: 13.5px; margin-top: 2px; }
+  .phase-dur { font-size: 11px; color: var(--open); margin: 4px 0 8px; }
+  .phase-items { margin: 0; padding: 0; list-style: none; }
+  .phase-items li { font-size: 11.5px; color: var(--text-dim); padding: 2px 0; }
+  .phase-items li::before { content: "· "; color: var(--text-mute); }
+
+  /* ===== Detail panel (slide-in) ===== */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(4, 7, 15, 0.65); backdrop-filter: blur(4px);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 60;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+
+  .panel {
+    position: fixed; top: 0; right: 0; height: 100vh; width: min(720px, 92vw);
+    background: var(--bg-2); border-left: 1px solid var(--border);
+    transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 70; display: flex; flex-direction: column;
+    box-shadow: var(--shadow-lg);
+  }
+  .panel.open { transform: translateX(0); }
+
+  .panel-head {
+    padding: 20px 24px 14px; border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .panel-head-top { display: flex; align-items: center; gap: 10px; }
+  .panel-num {
+    font-size: 11px; letter-spacing: 1.4px; font-weight: 700;
+    padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border);
+  }
+  .panel-num.open { color: var(--open); border-color: rgba(34, 211, 238, 0.4); background: rgba(34, 211, 238, 0.08); }
+  .panel-num.closed { color: var(--closed); border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.08); }
+  .panel-num.bridge { color: var(--bridge); border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.08); }
+  .panel-num.cross { color: var(--cross); border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.08); }
+  .panel-title { font-size: 20px; font-weight: 600; flex: 1; }
+  .panel-close {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+    display: grid; place-items: center; font-size: 16px; transition: background 0.12s, color 0.12s;
+  }
+  .panel-close:hover { background: var(--surface); color: var(--text); }
+  .panel-tag { color: var(--text-dim); font-size: 13.5px; }
+
+  .panel-tabs {
+    display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid var(--border); overflow-x: auto;
+  }
+  .panel-tab {
+    background: transparent; border: none; color: var(--text-mute);
+    padding: 12px 14px; cursor: pointer; font-size: 12.5px; font-weight: 500;
+    border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .panel-tab:hover { color: var(--text); }
+  .panel-tab.active { color: var(--open); border-bottom-color: var(--open); }
+  .panel-body { flex: 1; overflow-y: auto; padding: 22px 24px 80px; }
+  .panel-body h3 {
+    font-size: 11px; color: var(--text-mute); letter-spacing: 1.4px; text-transform: uppercase;
+    margin: 20px 0 10px;
+  }
+  .panel-body h3:first-child { margin-top: 0; }
+  .panel-body ul { margin: 0 0 10px; padding-left: 18px; }
+  .panel-body li { margin: 4px 0; font-size: 13.5px; color: var(--text); }
+  .panel-body li strong { color: var(--text); }
+  .panel-body li em { color: var(--text-dim); font-style: normal; }
+  .panel-body p { margin: 0 0 10px; font-size: 13.5px; color: var(--text-dim); }
+  .panel-body code {
+    background: var(--surface); padding: 1px 6px; border-radius: 4px;
+    font-size: 12px; color: var(--open); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    border: 1px solid var(--border-soft);
+  }
+  .kv {
+    display: grid; grid-template-columns: 160px 1fr; gap: 4px 14px; margin: 6px 0 12px;
+    font-size: 13px;
+  }
+  .kv dt { color: var(--text-mute); }
+  .kv dd { margin: 0; color: var(--text); }
+
+  .risk-table {
+    width: 100%; border-collapse: collapse; margin: 4px 0 8px;
+  }
+  .risk-table th, .risk-table td {
+    text-align: left; padding: 8px 10px; font-size: 12.5px; vertical-align: top;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .risk-table th { color: var(--text-mute); font-weight: 500; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .risk-table td:first-child { color: var(--text); width: 40%; }
+  .risk-table td:last-child { color: var(--text-dim); }
+
+  .panel-foot {
+    padding: 14px 24px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; gap: 10px; align-items: center;
+    background: var(--bg-2);
+  }
+  .nav-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 14px; border-radius: 6px; font-size: 12.5px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s, border-color 0.12s;
+  }
+  .nav-btn:hover { background: var(--surface-2); border-color: var(--open); }
+  .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ===== Tech summary ===== */
+  .tech-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;
+  }
+  .tech-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 14px;
+  }
+  .tech-card h4 { margin: 0 0 6px; font-size: 12.5px; color: var(--text); }
+  .tech-card p { margin: 0; font-size: 12px; color: var(--text-dim); }
+  .tech-primary { color: var(--open); }
+
+  /* ===== Footer ===== */
+  footer {
+    max-width: var(--max); margin: 40px auto 0; padding: 22px 24px;
+    border-top: 1px solid var(--border-soft); color: var(--text-mute);
+    font-size: 12px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  }
+
+  /* Scrollbar polish */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-mute); }
+
+  /* Print */
+  @media print {
+    header.topbar, .panel, .overlay { display: none !important; }
+    body { background: #fff; color: #000; }
+    .block, .env, .phase, .cross-card, .tech-card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">AI</div>
+      <div>
+        <div class="brand-title">AI Platform Architecture</div>
+        <div class="brand-sub">Two-Environment · On-Premises · Government Agency</div>
+      </div>
+    </div>
+    <nav class="topnav">
+      <a href="#overview">Overview</a>
+      <a href="#blocks">Blocks</a>
+      <a href="#cross-cutting">Cross-Cutting</a>
+      <a href="#tech">Tech Stack</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#" onclick="window.print(); return false;">Print</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" id="overview">
+  <h1>AI technical architecture for a dual-environment agency</h1>
+  <p class="lead">
+    A high-level and component-level design for running AI workloads across an internet-connected open environment
+    and an air-gapped closed environment — both on-premises, both managed by IT, with a single secure bridge between them.
+    Click any block below to open its full design.
+  </p>
+  <div class="hero-meta">
+    <span class="pill">11 core blocks</span>
+    <span class="pill">+ Secure Transfer Zone</span>
+    <span class="pill">+ Cross-cutting controls</span>
+    <span class="pill">Vendor-neutral</span>
+    <span class="pill">Interactive — click to expand</span>
+  </div>
+  <div class="legend">
+    <span class="legend-item"><span class="swatch open"></span> Open environment (internet-connected)</span>
+    <span class="legend-item"><span class="swatch closed"></span> Closed environment (air-gapped)</span>
+    <span class="legend-item"><span class="swatch bridge"></span> Secure transfer zone (one-way)</span>
+    <span class="legend-item"><span class="swatch cross"></span> Cross-cutting controls</span>
+  </div>
+</section>
+
+<section class="block-section" id="blocks">
+  <div class="section-title">Architecture</div>
+  <h2 class="section-heading">High-level design</h2>
+  <p class="section-sub">Two environments, one platform. Data and AI flow left-to-right. The Secure Transfer Zone is the only bridge, and it is unidirectional.</p>
+
+  <div class="arch" id="arch">
+    <!-- Open env -->
+    <div class="env open">
+      <div class="env-header">
+        <span class="env-badge open">Open</span>
+        <span class="env-name">Internet-connected · On-prem · IT-managed</span>
+      </div>
+      <div class="env-grid">
+        <button class="block open" data-block="1">
+          <span class="block-num">① Source</span>
+          <div class="block-name">External Data Sources</div>
+          <div class="block-tag">Registry of every open source we may collect from</div>
+        </button>
+        <button class="block open" data-block="2">
+          <span class="block-num">② Ingest</span>
+          <div class="block-name">Ingestion &amp; Collection</div>
+          <div class="block-tag">Scrapers, connectors, schedulers, raw landing</div>
+        </button>
+        <button class="block open" data-block="3">
+          <span class="block-num">③ Process</span>
+          <div class="block-name">Processing &amp; Enrichment</div>
+          <div class="block-tag">Clean, normalise, PII-scrub, tag, summarise</div>
+        </button>
+        <button class="block open" data-block="4">
+          <span class="block-num">④ LLM GW</span>
+          <div class="block-name">Commercial LLM Gateway</div>
+          <div class="block-tag">Single egress to Gemini / Claude / GPT with policy</div>
+        </button>
+        <button class="block open" data-block="5" style="grid-column: span 2;">
+          <span class="block-num">⑤ Stage</span>
+          <div class="block-name">Outbound Staging &amp; Review</div>
+          <div class="block-tag">Sealed, signed bundles ready for transfer</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bridge col -->
+    <div class="bridge-col">
+      <div class="flow-arrow">▶</div>
+      <button class="bridge-box" data-block="TZ">
+        <div class="bridge-label">One-way</div>
+        <div class="bridge-title">Secure Transfer Zone</div>
+        <div class="bridge-sub">Diode + multi-engine inspection + audit</div>
+      </button>
+      <div class="flow-arrow">▶</div>
+    </div>
+
+    <!-- Closed env -->
+    <div class="env closed">
+      <div class="env-header">
+        <span class="env-badge closed">Closed</span>
+        <span class="env-name">Air-gapped · On-prem · IT-managed</span>
+      </div>
+      <div class="env-grid">
+        <button class="block closed" data-block="6">
+          <span class="block-num">⑥ Source</span>
+          <div class="block-name">Internal Data Sources</div>
+          <div class="block-tag">Team-owned data, classified at origin</div>
+        </button>
+        <button class="block closed" data-block="7">
+          <span class="block-num">⑦ Ingest</span>
+          <div class="block-name">Internal Ingestion</div>
+          <div class="block-tag">Drop zone, CDC, service APIs, analyst portal</div>
+        </button>
+        <button class="block closed" data-block="8" style="grid-column: span 2;">
+          <span class="block-num">⑧ Data</span>
+          <div class="block-name">Unified Data Layer</div>
+          <div class="block-tag">Lake · Warehouse · Vector · Catalogue · Access</div>
+        </button>
+        <button class="block closed" data-block="9" style="grid-column: span 2;">
+          <span class="block-num">⑨ AI</span>
+          <div class="block-name">Local LLM &amp; AI Services</div>
+          <div class="block-tag">GPU fleet, OSS models, OpenAI-compatible API, RAG</div>
+        </button>
+        <button class="block closed" data-block="10">
+          <span class="block-num">⑩ Apps</span>
+          <div class="block-name">Use-case &amp; Analytics</div>
+          <div class="block-tag">Dashboards, agents, search, briefings, Q&amp;A</div>
+        </button>
+        <button class="block closed" data-block="11">
+          <span class="block-num">⑪ Users</span>
+          <div class="block-name">Consumers</div>
+          <div class="block-tag">Analysts, leadership, operators, service accounts</div>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Cross-cutting -->
+<section class="block-section" id="cross-cutting">
+  <div class="section-title">Applies to both environments</div>
+  <h2 class="section-heading">Cross-cutting controls</h2>
+  <p class="section-sub">Shared concerns, implemented independently in each environment but governed by a single policy set.</p>
+  <div class="cross-grid">
+    <button class="cross-card" data-block="CC-IAM"><h4>Identity &amp; Access</h4><p>SSO, MFA, RBAC + ABAC, service accounts</p></button>
+    <button class="cross-card" data-block="CC-CLASS"><h4>Data Classification &amp; Governance</h4><p>PUBLIC · INTERNAL · SENSITIVE · SECRET</p></button>
+    <button class="cross-card" data-block="CC-SIEM"><h4>Monitoring &amp; SIEM</h4><p>Per-env SIEM, alerting, audit trails</p></button>
+    <button class="cross-card" data-block="CC-SECRETS"><h4>Secrets &amp; Keys</h4><p>Vault per env, HSM-backed root keys</p></button>
+    <button class="cross-card" data-block="CC-DR"><h4>Backup, DR &amp; BCP</h4><p>3-2-1, annual drills, RPO/RTO per dataset</p></button>
+    <button class="cross-card" data-block="CC-COMPLIANCE"><h4>Compliance &amp; Policy</h4><p>AI usage, transfer, model lifecycle</p></button>
+  </div>
+</section>
+
+<!-- Tech stack snapshot -->
+<section class="block-section" id="tech">
+  <div class="section-title">Vendor-neutral reference</div>
+  <h2 class="section-heading">Technology stack snapshot</h2>
+  <p class="section-sub">Primary choices per capability. All alternatives are acceptable; standardising reduces operational burden.</p>
+  <div class="tech-grid">
+    <div class="tech-card"><h4>Orchestration</h4><p><span class="tech-primary">Apache Airflow</span> — Dagster, Prefect</p></div>
+    <div class="tech-card"><h4>Compute</h4><p><span class="tech-primary">Kubernetes on-prem</span> — GPU operator, Nomad</p></div>
+    <div class="tech-card"><h4>Object store</h4><p><span class="tech-primary">MinIO</span> — Ceph RGW</p></div>
+    <div class="tech-card"><h4>Lake format</h4><p><span class="tech-primary">Apache Iceberg</span> — Delta Lake</p></div>
+    <div class="tech-card"><h4>Warehouse</h4><p><span class="tech-primary">Trino</span> — ClickHouse, Postgres</p></div>
+    <div class="tech-card"><h4>Vector DB</h4><p><span class="tech-primary">Qdrant</span> — Milvus, Weaviate, pgvector</p></div>
+    <div class="tech-card"><h4>Text index</h4><p><span class="tech-primary">OpenSearch</span> — for BM25 hybrid retrieval</p></div>
+    <div class="tech-card"><h4>Catalogue</h4><p><span class="tech-primary">OpenMetadata</span> — DataHub</p></div>
+    <div class="tech-card"><h4>Secrets</h4><p><span class="tech-primary">HashiCorp Vault</span> — HSM-backed</p></div>
+    <div class="tech-card"><h4>Observability</h4><p><span class="tech-primary">OpenTelemetry + Prometheus + Grafana + Loki</span></p></div>
+    <div class="tech-card"><h4>LLM serving</h4><p><span class="tech-primary">vLLM (primary) + SGLang (secondary)</span></p></div>
+    <div class="tech-card"><h4>Local models</h4><p><span class="tech-primary">Llama · Qwen · Mistral · DeepSeek</span></p></div>
+    <div class="tech-card"><h4>Embeddings</h4><p><span class="tech-primary">BGE-M3</span> — E5-Mistral, Arabic-tuned</p></div>
+    <div class="tech-card"><h4>LLM proxy (open)</h4><p><span class="tech-primary">LiteLLM</span> — Portkey, custom FastAPI</p></div>
+    <div class="tech-card"><h4>PII detection</h4><p><span class="tech-primary">Microsoft Presidio</span> + custom recognisers</p></div>
+    <div class="tech-card"><h4>Transfer Zone</h4><p><span class="tech-primary">Hardware diode</span> + guarded inspection</p></div>
+  </div>
+</section>
+
+<!-- Roadmap -->
+<section class="block-section" id="roadmap">
+  <div class="section-title">Build sequencing</div>
+  <h2 class="section-heading">Phased rollout</h2>
+  <p class="section-sub">Parallelism is possible — phases 1 and 2 can overlap; AI services (phase 3) start once a minimal data plane exists.</p>
+  <div class="timeline">
+    <div class="phase">
+      <div class="phase-num">Phase 0</div>
+      <div class="phase-title">Foundations</div>
+      <div class="phase-dur">2–3 months</div>
+      <ul class="phase-items">
+        <li>Network zoning</li>
+        <li>Identity &amp; SSO</li>
+        <li>Secrets (Vault)</li>
+        <li>SIEM &amp; monitoring</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 1</div>
+      <div class="phase-title">Data plane</div>
+      <div class="phase-dur">2–3 months</div>
+      <ul class="phase-items">
+        <li>Open + Internal ingestion</li>
+        <li>Canonical schema</li>
+        <li>Catalogue</li>
+        <li>Lake + warehouse</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 2</div>
+      <div class="phase-title">Transfer zone</div>
+      <div class="phase-dur">1–2 months</div>
+      <ul class="phase-items">
+        <li>Diode + inspection</li>
+        <li>Signed bundles</li>
+        <li>Audit &amp; reconciliation</li>
+        <li>Security sign-off</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 3</div>
+      <div class="phase-title">AI services</div>
+      <div class="phase-dur">2–3 months</div>
+      <ul class="phase-items">
+        <li>Commercial LLM Gateway</li>
+        <li>Local LLM serving</li>
+        <li>Embeddings &amp; RAG</li>
+        <li>Model registry</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 4</div>
+      <div class="phase-title">First use-cases</div>
+      <div class="phase-dur">2–3 months</div>
+      <ul class="phase-items">
+        <li>Daily brief</li>
+        <li>Policy Q&amp;A</li>
+        <li>Investigative search</li>
+        <li>Eval harness</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 5+</div>
+      <div class="phase-title">Scale &amp; harden</div>
+      <div class="phase-dur">Ongoing</div>
+      <ul class="phase-items">
+        <li>More sources</li>
+        <li>Fine-tunes</li>
+        <li>DR drills</li>
+        <li>Performance</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>AI platform architecture · High-level + component-level · v1.0 · 2026</div>
+  <div>Press <code style="background:var(--surface); padding:2px 6px; border-radius:3px; border:1px solid var(--border);">←</code> / <code style="background:var(--surface); padding:2px 6px; border-radius:3px; border:1px solid var(--border);">→</code> in detail view to navigate · <code style="background:var(--surface); padding:2px 6px; border-radius:3px; border:1px solid var(--border);">Esc</code> to close</div>
+</footer>
+
+<!-- Detail panel -->
+<div class="overlay" id="overlay"></div>
+<aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+  <div class="panel-head">
+    <div class="panel-head-top">
+      <span class="panel-num" id="panel-num">①</span>
+      <div class="panel-title" id="panel-title">Title</div>
+      <button class="panel-close" id="panel-close" aria-label="Close">✕</button>
+    </div>
+    <div class="panel-tag" id="panel-tag">Tagline</div>
+  </div>
+  <div class="panel-tabs" id="panel-tabs"></div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-foot">
+    <button class="nav-btn" id="nav-prev">◀ Previous</button>
+    <span id="panel-position" style="color: var(--text-mute); font-size: 12px;"></span>
+    <button class="nav-btn" id="nav-next">Next ▶</button>
+  </div>
+</aside>
+
+<script>
+// ===============================
+// All block content lives here.
+// ===============================
+const BLOCKS = {
+  "1": {
+    num: "①", name: "External Data Sources", env: "open",
+    tag: "The registered catalogue of every external source the agency may collect from, plus the rules that govern use.",
+    scope: {
+      owns: [
+        "Source registry and its lifecycle",
+        "Legal &amp; licence evaluation per source",
+        "Source health &amp; availability monitoring",
+        "The contract downstream ingestion (②) consumes"
+      ],
+      notOwns: [
+        "Collection mechanics (② Ingestion)",
+        "Classification rules (cross-cutting governance)"
+      ]
+    },
+    components: [
+      "<strong>Source Registry</strong> — one record per source: owner, classification (PUBLIC), licence, access spec, collection policy, retention, contacts, change log",
+      "<strong>Approval workflow</strong> — Legal + Data Governance + Security sign-off before <code>active</code>",
+      "<strong>Health monitor</strong> — last success, freshness vs SLA, error trends, ToS-hash watcher",
+      "<strong>Categories</strong> — gov portals, international bodies, news APIs, RSS, web, research, social (API only)"
+    ],
+    tech: [
+      "<strong>Registry</strong> — YAML + Postgres or OpenMetadata custom entity",
+      "<strong>Approval</strong> — ServiceNow / internal change system",
+      "<strong>Monitoring</strong> — Prometheus + Grafana, synthetic probes"
+    ],
+    contracts: [
+      "Registry record schema (<code>source_id</code>, <code>classification</code>, <code>licence</code>, <code>access</code>, <code>collection_policy</code>, <code>retention</code>)",
+      "Only <code>status=active</code> sources may be collected — ② refuses unknowns",
+      "Quarterly re-review obligation recorded in the registry"
+    ],
+    operations: [
+      "Automatic pause on ToS change detection or repeated 4xx/5xx",
+      "Quarterly re-review of every active source",
+      "Per-source dashboard: last run, errors, volume, SLA status"
+    ],
+    risks: [
+      ["Scraping-prohibited source collected anyway", "Registry is the only allowed list; ingestion refuses unknown sources"],
+      ["Licence drift (source changes terms)", "Automated ToS-hash monitor + quarterly review"],
+      ["Shadow collections by teams", "Platform-level enforcement; any collector outside the registry cannot publish to Staging"],
+      ["Over-collection triggering blocking", "Per-source rate limit + agency user-agent + contact email"]
+    ]
+  },
+
+  "2": {
+    num: "②", name: "Ingestion &amp; Collection", env: "open",
+    tag: "Turns registered sources into raw landing objects — reliably, politely, with full provenance.",
+    scope: {
+      owns: [
+        "Collectors for every protocol (REST, RSS, file, scraping)",
+        "Scheduling &amp; orchestration of collection jobs",
+        "Raw landing in object storage with metadata",
+        "Error handling, retries, back-off"
+      ],
+      notOwns: [
+        "Parsing / cleaning (③)",
+        "LLM enrichment (④)"
+      ]
+    },
+    components: [
+      "<strong>Orchestrator</strong> — Airflow/Dagster, generates DAGs per source from the registry",
+      "<strong>Collector pool</strong> — stateless workers, one image per protocol (REST / RSS / Scraper / File)",
+      "<strong>Rate limiter</strong> — Redis token bucket per source",
+      "<strong>Job state DB</strong> — runs, durations, row counts, status, errors",
+      "<strong>Raw landing</strong> — <code>raw/{source_id}/{yyyy}/{mm}/{dd}/{run_id}/</code>"
+    ],
+    tech: [
+      "<strong>Orchestration</strong> — Apache Airflow",
+      "<strong>Runtime</strong> — Kubernetes Jobs (isolation + scale)",
+      "<strong>Rate limiting</strong> — Redis token bucket",
+      "<strong>Secrets</strong> — HashiCorp Vault",
+      "<strong>Object store</strong> — MinIO (S3-compatible)",
+      "<strong>Scraping</strong> — Scrapy + Playwright"
+    ],
+    contracts: [
+      "Every run emits a <code>meta.json</code>: run_id, source_id, collector version, byte count, file hashes, status",
+      "Catalogue event <code>source.collected</code> published for ③ to consume",
+      "Payloads are immutable — one path, one hash, one version"
+    ],
+    operations: [
+      "Off-hours scheduling by default, with per-source jitter",
+      "Exponential back-off; pause source after N consecutive failures",
+      "Backfill tool: replay a date range without duplicating downstream work",
+      "Poison-pill handling: isolate malformed payloads to <code>badrecords/</code>"
+    ],
+    risks: [
+      ["Source blocks the agency IP", "Identify user-agent, throttle, contact source owner"],
+      ["Collector leaks credentials in logs", "Standard redaction filter; secrets only from Vault"],
+      ["Orchestrator outage halts collection", "HA Airflow scheduler; backfill tool"],
+      ["Silent schema change in a source", "Schema fingerprint per run; alert on drift"],
+      ["Storage fills up", "Quotas per source + lifecycle policies"]
+    ]
+  },
+
+  "3": {
+    num: "③", name: "Processing &amp; Enrichment", env: "open",
+    tag: "Turns raw files into canonical, curated, catalogued records — ready for LLM enrichment (④) or transfer (⑤).",
+    scope: {
+      owns: [
+        "Validate, parse, clean, normalise, PII-scrub, light enrich",
+        "Canonical schema management &amp; versioning",
+        "Curated output to the Open-env lake"
+      ],
+      notOwns: [
+        "Calls to commercial LLMs (④)",
+        "Transfer (⑤)"
+      ]
+    },
+    components: [
+      "<strong>Validate</strong> — MIME, size, malware scan, schema fingerprint",
+      "<strong>Parse</strong> — Tika, Unstructured, Trafilatura, OCR for scanned pages",
+      "<strong>Clean</strong> — encoding, language detect, dedupe (exact + near-dupe MinHash)",
+      "<strong>Normalise</strong> — to the Canonical Record Schema (versioned)",
+      "<strong>PII scrub</strong> — Presidio + custom recognisers (national ID, IBAN, phone)",
+      "<strong>Light enrich</strong> — NER, topic tags, language-aware tokenisation"
+    ],
+    tech: [
+      "<strong>Batch</strong> — Apache Spark or Polars/DuckDB per scale",
+      "<strong>Parse</strong> — Tika + Unstructured + Tesseract (Arabic)",
+      "<strong>PII</strong> — Presidio + custom patterns",
+      "<strong>NLP</strong> — spaCy + Arabic NER, fastText"
+    ],
+    contracts: [
+      "Canonical Record Schema — record_id, source_id, collected_at, text, structured, classification, pii_scan, enrichments, lineage, hash_sha256",
+      "Schema is versioned; records carry <code>schema_version</code>",
+      "DLQ per stage with reason code"
+    ],
+    operations: [
+      "Idempotent pipelines keyed by <code>(source_id, run_id, stage, version)</code>",
+      "Backfill rebuilds curated from raw at a new pipeline version",
+      "Quality gates: completeness, language distribution, PII findings rate"
+    ],
+    risks: [
+      ["Canonical schema explosion", "Strong ownership; all changes via RFC"],
+      ["PII slips through Presidio", "Layered recognisers + sampled human audit + re-scan at ④ and Transfer Zone"],
+      ["OCR quality poor for Arabic", "Arabic-tuned OCR model; flag for manual review"],
+      ["Spark cluster overwhelmed", "Per-pipeline resource quotas; separate pools"]
+    ]
+  },
+
+  "4": {
+    num: "④", name: "Commercial LLM Gateway", env: "open",
+    tag: "The only component in the platform allowed to call Gemini / Claude / GPT. Single choke-point for policy, logging, cost.",
+    scope: {
+      owns: [
+        "Outbound LLM calls (only component authorised to call providers)",
+        "Caller authentication, authorisation, quota",
+        "Prompt &amp; response redaction",
+        "Provider routing &amp; fail-over",
+        "Cost &amp; usage reporting"
+      ],
+      notOwns: [
+        "Enrichment logic (lives in ③)",
+        "Local model serving (⑨)"
+      ]
+    },
+    components: [
+      "<strong>AuthN/Z</strong> — mTLS + bearer tokens, scoped roles",
+      "<strong>Quota</strong> — Redis-backed rolling window, per-caller, per-use-case",
+      "<strong>Policy engine</strong> — <code>classification ≤ PUBLIC</code>, model allow-list, size limits",
+      "<strong>Inbound redactor</strong> — second-line PII scrub (Presidio + regex)",
+      "<strong>Router</strong> — per-use-case provider choice, retries, fail-over",
+      "<strong>Provider adapters</strong> — one per provider, pinned SDK versions",
+      "<strong>Outbound redactor</strong> — scan responses for prompt echoes / secrets",
+      "<strong>Cache</strong> — exact-prompt + optional semantic (PUBLIC only)",
+      "<strong>Audit logger</strong> — full prompt, response, tokens, cost, verdict → SIEM"
+    ],
+    tech: [
+      "<strong>Base</strong> — LiteLLM or custom FastAPI",
+      "<strong>Keys</strong> — Vault, rotated ≤ 90 days, hot-reload",
+      "<strong>Egress</strong> — firewall allow-list to provider FQDNs only"
+    ],
+    contracts: [
+      "OpenAI-compatible API — same shape as ⑨ so apps port easily",
+      "Mandatory headers — <code>X-Use-Case</code>, <code>X-Classification-Ceiling</code>, <code>X-Record-IDs</code>",
+      "Hard-deny on <code>classification ≠ PUBLIC</code>"
+    ],
+    operations: [
+      "Quarterly chaos test — primary provider unavailable → verify fail-over",
+      "Monthly prompt-leak test — canary tokens in retrieval, verify never returned",
+      "Weekly usage report — who / what / how much / producing what",
+      "Per-use-case budgets with soft (70%) and hard (100%) stops"
+    ],
+    risks: [
+      ["Non-public data leaks via prompt", "Classification policy + double redaction + audit; violations trigger incident"],
+      ["Provider outage blocks pipelines", "Multi-provider routing; cache warms common prompts"],
+      ["Cost blow-up", "Per-use-case budgets, hard stops, daily alerts"],
+      ["New model behaviour regressions", "Pinned versions; upgrade only after lab eval"],
+      ["Provider retention policy change", "Contractually tracked; prefer zero-retention endpoints"]
+    ]
+  },
+
+  "5": {
+    num: "⑤", name: "Outbound Staging &amp; Review", env: "open",
+    tag: "The only place from which data leaves the Open environment. Write-once, sealed bundles ready for the Transfer Zone.",
+    scope: {
+      owns: [
+        "Sealed bundle format",
+        "Signing with the Open-env private key",
+        "Pre-transfer quality gates",
+        "Backlog management toward the Transfer Zone"
+      ],
+      notOwns: [
+        "The diode itself (Transfer Zone)",
+        "Any modification of data — by this point data is immutable"
+      ]
+    },
+    components: [
+      "<strong>Bundle builder</strong> — writes <code>data.parquet</code>, <code>manifest.json</code>, <code>manifest.sig</code>, <code>transfer.yaml</code>",
+      "<strong>Pre-transfer quality gate</strong> — schema, classification, PII re-scan, volume sanity, completeness, integrity",
+      "<strong>Signer</strong> — HSM-backed signing key via Vault",
+      "<strong>Backlog manager</strong> — FIFO with priority override; alerts at 50/80/95% capacity"
+    ],
+    tech: [
+      "<strong>Storage</strong> — MinIO with object-lock (write-once)",
+      "<strong>Format</strong> — Parquet + JSON manifest + detached signature",
+      "<strong>Signing</strong> — Vault PKI + HSM"
+    ],
+    contracts: [
+      "<strong>manifest.json</strong> — bundle_id, created_at, creator, schema_version, record_count, byte_count, classification, source_ids, file hashes, signing_key_id",
+      "<strong>transfer.yaml</strong> — target, priority, retention_after_transfer, policy_version",
+      "Bundle sealed after all gates pass; failure → <code>bundle-dlq/</code> with reason"
+    ],
+    operations: [
+      "Tamper monitor — modification of sealed bundle = critical alert",
+      "Replay — bundle can be re-transferred if Closed env requests",
+      "Retention — bundle held N days after transfer for forensic reconciliation"
+    ],
+    risks: [
+      ["Bundle tampered after signing", "Object-lock + signature covers manifest covers file hashes"],
+      ["Wrong classification slips in", "Triple-check (③, ④, ⑤) + Transfer Zone rejects non-PUBLIC"],
+      ["Oversized bundle", "Hard max size; automatic chunking into sibling bundles"],
+      ["Signing key compromise", "HSM-backed; rotation + revocation procedure; Closed env can revoke trust"]
+    ]
+  },
+
+  "TZ": {
+    num: "⇒", name: "Secure Transfer Zone", env: "bridge",
+    tag: "The single, IT-managed bridge between Open and Closed. Unidirectional. Multi-engine inspected. Fully audited.",
+    scope: {
+      owns: [
+        "Physical diode &amp; flanking appliances",
+        "Inspection pipeline on the Closed side",
+        "Bundle verification, classification enforcement, release",
+        "Bidirectional audit (both envs log every transfer)"
+      ],
+      notOwns: [
+        "Bundle creation (⑤) &amp; internal inbox routing (⑦)"
+      ]
+    },
+    components: [
+      "<strong>Export appliance</strong> (Open side) — watches staging, frames data, FEC, heartbeat",
+      "<strong>Data diode</strong> — physically unidirectional optical link",
+      "<strong>Receive appliance</strong> (Closed side) — reassembles, writes to inspection holding",
+      "<strong>Inspection pipeline</strong> — signature verify → hash verify → multi-engine AV → schema &amp; shape → classification → DLP / active-content strip → release or quarantine"
+    ],
+    tech: [
+      "<strong>Diode</strong> — Owl Cyber Defense, Forcepoint, Everfox (hardware)",
+      "<strong>AV</strong> — one commercial + one open-source engine, independent databases",
+      "<strong>Offline signature updates</strong> — approved offline feed cadence",
+      "<strong>Inspection</strong> — dedicated appliance cluster, segregated network"
+    ],
+    contracts: [
+      "Input — sealed, signed bundle (from ⑤)",
+      "Output — verified bundle in <code>⑦ inbox</code> <strong>or</strong> quarantined with reason",
+      "Reconciliation — daily diff between Open &quot;sent&quot; and Closed &quot;received&quot;",
+      "One-way only — no protocol-level response on the diode"
+    ],
+    operations: [
+      "SLAs: small bundles minutes, large hours; publish and monitor",
+      "Capacity: known throughput ceiling; producers back off if bottleneck",
+      "Scheduled DR drill: simulated quarantine of benign bundle, exercise human review path",
+      "Key rotation — dual-control procedure, documented runbook"
+    ],
+    risks: [
+      ["Malware sneaks through", "Multi-engine AV + signature verify + active-content strip + schema lock"],
+      ["Policy drift (new data type added unreviewed)", "Schema allow-list; unknown schema quarantined"],
+      ["Diode hardware failure", "Dual diode pair with fail-over; producers pause if both down"],
+      ["Key mismatch after rotation", "Dual-trust window during rotation; runbook"],
+      ["Covert channel via timing/sizes", "Bundle padding + scheduled batching to normalise traffic"]
+    ]
+  },
+
+  "6": {
+    num: "⑥", name: "Internal Data Sources", env: "closed",
+    tag: "The catalogue and contracts for every internal data source feeding the Closed env. Mirror of ① on the internal side.",
+    scope: {
+      owns: [
+        "Internal source registry",
+        "Data-sharing agreements (MoUs) with originating teams",
+        "Classification assignment at source"
+      ],
+      notOwns: [
+        "Ingestion plumbing (⑦)",
+        "Storage / curation (⑧)"
+      ]
+    },
+    components: [
+      "<strong>Internal registry</strong> — owner team, business contact, classification, access model, quality SLA, retention, PIA, MoU reference",
+      "<strong>Source categories</strong> — operational systems, warehouses, team datasets, document repositories, sensors, restricted archives"
+    ],
+    tech: [
+      "Same catalogue tech as Open (separate instance) — OpenMetadata / DataHub"
+    ],
+    contracts: [
+      "Every source must have a signed internal MoU — otherwise no ingestion",
+      "MoU covers: fields shared, frequency, permitted uses, access model, quality SLA, retention",
+      "Default-to-most-sensitive when classification uncertain"
+    ],
+    operations: [
+      "Quarterly classification review by Governance",
+      "MoU renewal on a schedule with the originating team",
+      "Incident path when a source changes shape or ownership"
+    ],
+    risks: [
+      ["Team uploads data without approval", "Drop zone refuses uploads from unknown source IDs"],
+      ["Classification mis-assigned at source", "Periodic governance review; default-to-most-sensitive"],
+      ["Sensitive data copies escape into shared drives", "Platform-as-service: all analytics via ⑩; DLP on email/shares"]
+    ]
+  },
+
+  "7": {
+    num: "⑦", name: "Internal Ingestion", env: "closed",
+    tag: "Brings internal sources into the Unified Data Layer with the same rigour as Open ingestion, plus higher-classification support.",
+    scope: {
+      owns: [
+        "Internal drop zone &amp; connectors",
+        "Validation, classification, cataloguing of internal data",
+        "Landing into the Closed-env lake"
+      ],
+      notOwns: [
+        "Source registration (⑥)",
+        "Curation &amp; joining (⑧)"
+      ]
+    },
+    components: [
+      "<strong>SFTP drop zone</strong> — per-team creds, MFA, AV, schema + class check, then move to raw",
+      "<strong>CDC replication</strong> — Debezium → Kafka → Iceberg/Delta (upsert-friendly)",
+      "<strong>Service APIs</strong> — mTLS-authenticated endpoints, signed payloads",
+      "<strong>Internal portal upload</strong> — browser app, mandatory metadata, logged and auditable"
+    ],
+    tech: [
+      "<strong>CDC</strong> — Debezium or vendor-native",
+      "<strong>Streaming</strong> — Kafka / Redpanda",
+      "<strong>Schema registry</strong> — Confluent or Apicurio (additive-only evolution)",
+      "<strong>Portal</strong> — internal web app, SSO-protected"
+    ],
+    contracts: [
+      "Canonical schema, extended with classifications <code>INTERNAL</code>, <code>SENSITIVE</code>, <code>SECRET</code>",
+      "Every record carries <code>access_tags</code> mapping to entitlements (e.g., <code>dept:finance</code>, <code>region:east</code>, <code>project:xyz</code>)"
+    ],
+    operations: [
+      "Per-source dashboard mirrors Open env",
+      "MoU adherence checks — is this source still approved, usage within agreed limits",
+      "DLQ + back-fill tool"
+    ],
+    risks: [
+      ["Sensitive data lands with wrong classification", "Default-to-most-sensitive + governance review"],
+      ["PII over-collection", "PIA at registration; minimisation by default"],
+      ["Team circumvents via email attachments", "Governance policy + email DLP"],
+      ["CDC drift vs source schema", "Schema registry + alerting + controlled evolution"]
+    ]
+  },
+
+  "8": {
+    num: "⑧", name: "Unified Data Layer", env: "closed",
+    tag: "The single home for all data — Open- and Internal-origin. Storage, governance, cataloguing, serving.",
+    scope: {
+      owns: [
+        "Lake, warehouse, vector store, text index",
+        "Data catalogue &amp; lineage",
+        "Access control on data",
+        "Curation pipelines (where Open + Internal join)"
+      ],
+      notOwns: [
+        "AI serving (⑨)",
+        "Use-case logic (⑩)"
+      ]
+    },
+    components: [
+      "<strong>Raw zone</strong> — immutable landing, partitioned by source/date",
+      "<strong>Curated zone</strong> — Iceberg/Delta tables, cleansed, conformed, subject-area models",
+      "<strong>Warehouse</strong> — Trino or ClickHouse, SQL-serving for BI",
+      "<strong>Vector DB</strong> — Qdrant/Milvus for embeddings",
+      "<strong>Text index</strong> — OpenSearch for BM25 hybrid retrieval",
+      "<strong>Catalogue</strong> — OpenMetadata across all zones",
+      "<strong>Access controller</strong> — Ranger/OPA + attribute tags, row/column-level"
+    ],
+    tech: [
+      "<strong>Object store</strong> — MinIO / Ceph",
+      "<strong>Lake format</strong> — Apache Iceberg (primary) / Delta Lake",
+      "<strong>Warehouse</strong> — Trino + Iceberg, or ClickHouse",
+      "<strong>Vector</strong> — Qdrant (primary) / Milvus / Weaviate",
+      "<strong>Text</strong> — OpenSearch",
+      "<strong>Catalogue</strong> — OpenMetadata / DataHub",
+      "<strong>Access</strong> — Apache Ranger or OPA"
+    ],
+    contracts: [
+      "<strong>Canonical record schema</strong> with classification + access_tags",
+      "<strong>Subject-area models</strong> — entities, events, documents, indicators, relationships",
+      "<strong>Classification inheritance</strong> — joins adopt the highest classification of inputs",
+      "<strong>Lineage</strong> — recorded at every step, back to bundle IDs and source IDs"
+    ],
+    operations: [
+      "Table maintenance — Iceberg/Delta compaction, snapshot expiration",
+      "Storage tiering (hot/warm/cold) aligned with registry retention",
+      "Additive schema evolution auto-migrated; breaking changes via RFC",
+      "DQ rule framework (Great Expectations / Soda) on curated tables"
+    ],
+    risks: [
+      ["Uncontrolled joins produce sensitive datasets unnoticed", "Governance approval for new curated products; lineage enforced"],
+      ["Access control drift (copies to notebooks)", "No local copies; query-in-place via governed engines"],
+      ["Vector index leaks unauthorised chunks", "Filter-before-LLM enforced in ⑨; also at retriever layer"],
+      ["Catalogue becomes stale", "Catalogue populated by ingestion events, not human effort"],
+      ["Retention policy ignored", "Automated lifecycle rules; quarterly audit"]
+    ]
+  },
+
+  "9": {
+    num: "⑨", name: "Local LLM &amp; AI Services", env: "closed",
+    tag: "GPU fleet, OSS-model serving, internal OpenAI-compatible AI API, RAG, registry, fine-tuning — all on-prem, all air-gapped.",
+    scope: {
+      owns: [
+        "GPU compute fleet and scheduling",
+        "Inference serving for LLMs and embedding models",
+        "Central internal AI API",
+        "RAG building blocks (retrievers, rerankers, context builders)",
+        "Model registry, evaluation harness, release process",
+        "Fine-tuning pipeline and artefacts"
+      ],
+      notOwns: [
+        "Data storage (⑧)",
+        "Use-case business logic (⑩)",
+        "Any outbound network"
+      ]
+    },
+    components: [
+      "<strong>AI API Gateway</strong> — single entry; authN/Z, quotas, routing, policy, caching, audit",
+      "<strong>Chat/Gen service</strong> — OpenAI-compatible, routes per-use-case to the right model tier",
+      "<strong>Embeddings service</strong> — high-throughput vectoriser",
+      "<strong>Rerank service</strong> — cross-encoder reranking",
+      "<strong>RAG service</strong> — hybrid retrieval → entitlement filter → rerank → context → answer + citations",
+      "<strong>Tool / agent runtime</strong> — structured tool calls with policy",
+      "<strong>Model serving pools</strong> — vLLM (primary), SGLang (secondary)",
+      "<strong>Model registry</strong> — artefacts, lineage, evals, promotion state",
+      "<strong>Eval harness</strong> — model-, use-case-, production-level",
+      "<strong>Fine-tune cluster</strong> — separate from inference; LoRA-first"
+    ],
+    tech: [
+      "<strong>Serving</strong> — vLLM primary, SGLang secondary, TGI fallback",
+      "<strong>Flagship models</strong> — Llama 3.x 70B/405B, Qwen 2.5 72B, DeepSeek V3, Mistral Large",
+      "<strong>Workhorse</strong> — Llama 3 8–13B, Qwen 2.5 14–32B",
+      "<strong>Embeddings</strong> — BGE-M3, E5-Mistral, Arabic-tuned",
+      "<strong>Rerankers</strong> — BGE-reranker-v2",
+      "<strong>Hardware</strong> — H100 / H200 / MI300 class, NVLink islands"
+    ],
+    contracts: [
+      "OpenAI-compatible endpoints — <code>/v1/chat/completions</code>, <code>/v1/embeddings</code>, <code>/v1/rerank</code>, <code>/v1/rag/answer</code>, <code>/v1/models</code>",
+      "Mandatory headers — <code>X-User-Id</code>, <code>X-Use-Case</code>, <code>X-Classification-Ceiling</code>",
+      "<code>/v1/rag/answer</code> returns <code>citations[]</code> — apps can refuse to render uncited answers",
+      "Promotion gate — no model reaches production without passing its eval suite"
+    ],
+    operations: [
+      "Size on output tokens/sec, not users; keep 20% headroom at p95",
+      "Canary promotion 5% → 25% → 100% with automated rollback",
+      "Three eval layers run continuously (model / use-case / production sampling)",
+      "Per-request, per-pool, per-use-case observability to Grafana"
+    ],
+    risks: [
+      ["Under-sized GPUs → SLO failure", "Size on tokens/sec; headroom; queue depth alerts; burst capacity"],
+      ["Over-sized GPUs → wasted capex", "Baseline fleet + published expansion trigger"],
+      ["Model upgrade breaks use-cases", "Eval gate + canary + automated rollback; keep N-1 warm"],
+      ["Arabic quality regression", "Arabic-specific evals in promotion gate; don't trust English benchmarks alone"],
+      ["Retrieval leaks sensitive data into answers", "Entitlement filter before LLM; output validator; sampled audit"],
+      ["Prompt injection via poisoned sources", "Treat context as data; structured prompts; output validation; red-team"],
+      ["&quot;Shadow&quot; fine-tunes by enthusiastic teams", "Registry-only policy — if it's not in the registry, it's not served"]
+    ]
+  },
+
+  "10": {
+    num: "⑩", name: "Use-case &amp; Analytics Layer", env: "closed",
+    tag: "Where the platform becomes products analysts actually use. Apps, not infrastructure.",
+    scope: {
+      owns: [
+        "Use-case apps (UI + orchestration + business logic)",
+        "Prompt templates, tool definitions, agent workflows",
+        "Use-case-level evaluation bundles",
+        "Analyst-facing notebooks &amp; workbenches"
+      ],
+      notOwns: [
+        "The AI API or models (⑨)",
+        "Raw data access control (⑧)"
+      ]
+    },
+    components: [
+      "<strong>Daily Open-Source Brief</strong> — curated morning brief with citations",
+      "<strong>PolicyBot</strong> — natural-language Q&amp;A over internal policies",
+      "<strong>Nexus</strong> — cross-source investigative search over Open + Internal",
+      "<strong>Briefing generator</strong> — auto-drafted briefs on a topic",
+      "<strong>Entity resolution assistant</strong> — link mentions across sources",
+      "<strong>Prompt library</strong> — versioned prompts as code artefacts",
+      "<strong>Tool catalogue</strong> — warehouse.query, vector.search, document.fetch, llm.summarise",
+      "<strong>Analyst workbench</strong> — governed JupyterHub with curated libraries"
+    ],
+    tech: [
+      "<strong>Apps</strong> — FastAPI / Next.js internal deployments",
+      "<strong>Orchestration</strong> — direct code for simple pipelines; LangGraph for multi-step agents",
+      "<strong>Prompt repo</strong> — versioned Git repo with reviews",
+      "<strong>Notebooks</strong> — JupyterHub with internal package mirror"
+    ],
+    contracts: [
+      "Every app calls only the AI API (⑨) — no direct model access",
+      "Every app propagates entitlements via <code>X-User-Id</code> / <code>X-Classification-Ceiling</code>",
+      "Every answer is cited; apps may refuse to render uncited responses",
+      "Tool calls logged with full arguments + results"
+    ],
+    operations: [
+      "Per-use-case dashboard — usage, latency, error, refusal, satisfaction",
+      "Canary + evals before full rollout of any change",
+      "Quarterly renewal review — keep or retire each use-case",
+      "Feedback loop: 👍/👎 captured with request_id; weekly triage"
+    ],
+    risks: [
+      ["App bypasses the AI API", "Network-level enforcement — only AI API is callable from apps"],
+      ["Prompt sprawl", "Versioned library + review"],
+      ["Analyst trusts hallucinated answer", "Citations mandatory; refusal paths; training; feedback capture"],
+      ["Scope creep per app", "Each app has a scoped charter; new capabilities go through Governance"],
+      ["Evals rot", "Eval bundles are owned; DQ on eval data itself"]
+    ]
+  },
+
+  "11": {
+    num: "⑪", name: "Consumers", env: "closed",
+    tag: "The people and systems that use the platform. Personas, entitlements, access paths, enablement.",
+    scope: {
+      owns: [
+        "Personas &amp; entitlements",
+        "Access paths (workstation, VDI, service accounts)",
+        "Training &amp; enablement"
+      ],
+      notOwns: [
+        "Platform services (⑧–⑩)"
+      ]
+    },
+    components: [
+      "<strong>Analyst</strong> — use-case apps + workbench; investigate, search, summarise, draft",
+      "<strong>Senior analyst</strong> — approvals for ad-hoc access; reviews team investigations",
+      "<strong>Decision-maker</strong> — dashboards + briefing apps; curated outputs",
+      "<strong>Data product owner</strong> — app admin + catalogue",
+      "<strong>Platform operator</strong> — admin consoles, runbooks",
+      "<strong>Governance / audit</strong> — audit console, SIEM",
+      "<strong>Service accounts</strong> — AI API + entitled data access for apps"
+    ],
+    tech: [
+      "<strong>Endpoints</strong> — managed workstations on agency LAN",
+      "<strong>VDI</strong> — non-persistent, clipboard/screenshot disabled for sensitive work",
+      "<strong>Identity</strong> — Closed-env IdP with SSO + phishing-resistant MFA (FIDO2)"
+    ],
+    contracts: [
+      "Identity in Closed-env IdP (not federated to Open env)",
+      "Roles map to use-case access and data entitlement tags",
+      "ABAC attributes (department, project, clearance) drive entitlement decisions",
+      "Elevation requests are time-boxed, approved, fully audited"
+    ],
+    operations: [
+      "Onboarding: classification, responsible AI use, citation literacy",
+      "Weekly 👍/👎 triage informs data quality and product backlog",
+      "Quarterly access review; auto-expiry on elevated access",
+      "Offboarding triggered by IdP lifecycle events"
+    ],
+    risks: [
+      ["Shadow analytics (users go around the platform)", "Make the platform the fastest path; DLP monitoring; governance policy"],
+      ["Over-trust in AI outputs", "Training; citations; refusal paths; HITL on high-stakes use-cases"],
+      ["Under-use (platform built, no adoption)", "Data function co-designs with users; flagship use-case early; adoption metrics"],
+      ["Privilege creep", "Quarterly access review; auto-expiry on elevated access"]
+    ]
+  },
+
+  // ===== Cross-cutting =====
+  "CC-IAM": {
+    num: "✦", name: "Identity &amp; Access", env: "cross",
+    tag: "Two IdP instances (one per environment, not federated), SSO, MFA, RBAC + ABAC, just-in-time elevation.",
+    scope: {
+      owns: [
+        "Identity provider per environment",
+        "SSO for all apps in each env",
+        "Role &amp; attribute model",
+        "Service-account lifecycle"
+      ],
+      notOwns: [
+        "Business entitlement decisions (owned by data owners)"
+      ]
+    },
+    components: [
+      "<strong>IdP per env</strong> — AD / Entra ID / Keycloak instances, independent",
+      "<strong>SSO</strong> — OIDC / SAML across all internal apps",
+      "<strong>RBAC</strong> — broad roles (analyst, senior, admin)",
+      "<strong>ABAC</strong> — fine-grained attribute-driven decisions",
+      "<strong>JIT elevation</strong> — no standing root; approval + audit",
+      "<strong>Service accounts</strong> — owned, scoped, rotated, audited"
+    ],
+    tech: [
+      "Active Directory / Entra ID / Keycloak (two instances)",
+      "FIDO2 hardware keys for phishing-resistant MFA",
+      "OPA / Ranger for ABAC policy evaluation"
+    ],
+    contracts: [
+      "No federation across the boundary — identities are independent",
+      "Every request carries a user identity — never service-only on human paths",
+      "Service accounts have machine-readable owner metadata"
+    ],
+    operations: [
+      "Quarterly access review per team",
+      "Auto-expiry on elevated access",
+      "Offboarding via IdP lifecycle events"
+    ],
+    risks: [
+      ["Identity sync across boundary creates covert channel", "No federation; independent identities per env"],
+      ["Standing privileges accumulate", "JIT elevation + quarterly review"],
+      ["Service account sprawl", "Registry + ownership + rotation + usage-based expiry"]
+    ]
+  },
+
+  "CC-CLASS": {
+    num: "✦", name: "Data Classification &amp; Governance", env: "cross",
+    tag: "One scheme, applied consistently — and enforced in code, not just in policy documents.",
+    scope: {
+      owns: [
+        "Classification scheme &amp; rules",
+        "Governance Council &amp; approvals",
+        "Data catalogue policy",
+        "Alignment to national regulations"
+      ],
+      notOwns: [
+        "Technical enforcement — that lives in ⑧ and ⑨"
+      ]
+    },
+    components: [
+      "<strong>Classes</strong> — PUBLIC · INTERNAL · SENSITIVE · SECRET",
+      "<strong>Inheritance</strong> — joins adopt the highest class of inputs",
+      "<strong>Transfer rule</strong> — Transfer Zone only accepts PUBLIC",
+      "<strong>Governance Council</strong> — IT + Data + Legal + Security",
+      "<strong>Model class</strong> — only local LLMs touch INTERNAL+"
+    ],
+    tech: [
+      "Classification tag is a column / metadata attribute, not a label somewhere else",
+      "Enforced by ⑧ access controller and ⑨ entitlement filter"
+    ],
+    contracts: [
+      "Every dataset, table, file, record carries its class",
+      "New data sources, new use-cases, and class changes require Council approval",
+      "Alignment: NDMO, SDAIA, and sector-specific regulations"
+    ],
+    operations: [
+      "Governance Council cadence (monthly)",
+      "Periodic classification review of existing data",
+      "Change-request workflow for approvals"
+    ],
+    risks: [
+      ["Downgrade by convenience", "No downgrade without formal Council review"],
+      ["Class label ignored in practice", "Technical enforcement in ⑧/⑨ — class is load-bearing, not decorative"]
+    ]
+  },
+
+  "CC-SIEM": {
+    num: "✦", name: "Monitoring &amp; SIEM", env: "cross",
+    tag: "Two SIEMs, one per environment. Logs don't cross — summarised health signals may, via the same diode if allowed.",
+    scope: {
+      owns: [
+        "Log collection &amp; retention",
+        "Alerting &amp; on-call",
+        "Audit trail accessible to governance"
+      ],
+      notOwns: [
+        "Application business metrics (owned by app teams)"
+      ]
+    },
+    components: [
+      "<strong>What is logged</strong> — network, identity, ingestion, LLM Gateway, Transfer Zone, data layer, local LLM, apps",
+      "<strong>Alerts</strong> — classification-mismatch LLM calls, Transfer Zone rejects, unusual sensitive-data access, GPU/latency baselines",
+      "<strong>Retention</strong> — per SIEM, tied to audit policy"
+    ],
+    tech: [
+      "OpenTelemetry collector per service",
+      "Prometheus + Grafana for metrics",
+      "Loki / Elasticsearch for logs",
+      "SIEM — Splunk / Elastic / Wazuh / vendor of choice (one per env)"
+    ],
+    contracts: [
+      "Every tool emits a trace-able <code>request_id</code>",
+      "Every LLM call logs prompt + response + model + tokens + verdict",
+      "Every transfer writes an immutable audit record in both envs"
+    ],
+    operations: [
+      "On-call per environment",
+      "Monthly SIEM use-case review (are our detections catching what matters?)",
+      "Quarterly red-team exercises"
+    ],
+    risks: [
+      ["Log volume overwhelms SIEM", "Sampling + tiered retention"],
+      ["Alert fatigue", "Tuning; severity discipline; suppression rules"],
+      ["Audit logs tampered with", "Append-only store; dual-control for retention changes"]
+    ]
+  },
+
+  "CC-SECRETS": {
+    num: "✦", name: "Secrets &amp; Key Management", env: "cross",
+    tag: "Vault per environment. HSM-backed root keys. Short-lived credentials. Automatic rotation.",
+    scope: {
+      owns: [
+        "Secret storage and lifecycle",
+        "Signing &amp; encryption keys",
+        "Rotation &amp; auditing"
+      ],
+      notOwns: [
+        "Application secret consumption logic — owned by each service"
+      ]
+    },
+    components: [
+      "<strong>Vault per env</strong> — HashiCorp Vault or equivalent",
+      "<strong>HSM</strong> — root keys for signing &amp; encryption-at-rest",
+      "<strong>Commercial LLM keys</strong> — Open-env Vault only",
+      "<strong>Open-env signing key</strong> — HSM-backed; trusted by Closed env for bundle verification"
+    ],
+    tech: [
+      "HashiCorp Vault + HSM",
+      "Short-lived dynamic credentials (DB, object store, etc.)",
+      "Quarterly key rotation for signing keys"
+    ],
+    contracts: [
+      "No application holds a long-lived credential — everything via Vault",
+      "Rotation is dual-control; audit trail on every key operation",
+      "Commercial LLM keys never exist in the Closed env"
+    ],
+    operations: [
+      "Rotation schedule enforced by Vault",
+      "Leak-detection scanning in CI for accidental commits",
+      "Break-glass procedure documented + drilled"
+    ],
+    risks: [
+      ["Signing key compromise", "HSM + revocation procedure; Closed env can cut trust"],
+      ["Vault outage blocks the platform", "HA deployment; read-through caches where safe"],
+      ["Long-lived credentials accumulate", "Dynamic-only policy; scanning; deprecation schedule"]
+    ]
+  },
+
+  "CC-DR": {
+    num: "✦", name: "Backup, DR &amp; BCP", env: "cross",
+    tag: "3-2-1 per environment. Models and data are versioned and backed up. Annual full-restore drills.",
+    scope: {
+      owns: [
+        "Backup policy",
+        "Disaster recovery plans",
+        "Business continuity process"
+      ],
+      notOwns: [
+        "App-level data quality (owned by app teams)"
+      ]
+    },
+    components: [
+      "<strong>3-2-1</strong> — three copies, two media, one off-site (agency-approved secure)",
+      "<strong>RPO/RTO per dataset</strong> — critical curated ≤1h/≤4h; raw ≤24h",
+      "<strong>Model artefacts</strong> — versioned &amp; backed up like data",
+      "<strong>Runbooks</strong> — for each component"
+    ],
+    tech: [
+      "Object-store native backup (versioning + replication)",
+      "Database PITR (point-in-time recovery)",
+      "Off-site replication to second secure site (air-gapped)"
+    ],
+    contracts: [
+      "Every dataset has a declared RPO/RTO",
+      "Every model version is restorable from backup",
+      "Annual DR drill includes a full use-case restore"
+    ],
+    operations: [
+      "Daily backup verification jobs",
+      "Annual DR drill with post-mortem",
+      "Quarterly restore spot-checks on random datasets"
+    ],
+    risks: [
+      ["Backup corruption discovered only at restore time", "Scheduled restore tests; checksum verification"],
+      ["Off-site out of date", "Replication lag monitoring; alerting"],
+      ["DR plan documents but never practised", "Calendar-enforced annual drill"]
+    ]
+  },
+
+  "CC-COMPLIANCE": {
+    num: "✦", name: "Compliance &amp; Policy", env: "cross",
+    tag: "The policy backbone — AI usage, model lifecycle, transfer policy, incident response — all as living documents enforced in code.",
+    scope: {
+      owns: [
+        "Policy portfolio (AI usage, transfer, classification, model lifecycle)",
+        "Model cards &amp; evaluation reports",
+        "Incident response runbook",
+        "Bias &amp; safety assessments for high-impact use-cases"
+      ],
+      notOwns: [
+        "Technical controls — they live in the relevant blocks"
+      ]
+    },
+    components: [
+      "<strong>Data classification policy</strong> — the authoritative scheme",
+      "<strong>AI usage policy</strong> — what LLMs can be used for, by whom, on what data",
+      "<strong>Acceptable use policy</strong> for external LLMs",
+      "<strong>Model lifecycle policy</strong> — approval, eval, deprecation",
+      "<strong>Transfer Zone operating policy</strong>",
+      "<strong>Incident response runbook</strong>"
+    ],
+    tech: [
+      "Policies live in a governance repository, reviewed and version-controlled",
+      "Model cards generated with each registry release",
+      "Policy compliance checks in CI where feasible"
+    ],
+    contracts: [
+      "Every use-case has a registered charter referencing applicable policies",
+      "Every model has a model card + eval report in the registry",
+      "Human-in-the-loop required for decisions affecting people"
+    ],
+    operations: [
+      "Annual policy review cycle",
+      "Quarterly compliance attestation",
+      "Incident-driven policy updates"
+    ],
+    risks: [
+      ["Policies drift from practice", "CI-enforced checks where feasible; audit samples"],
+      ["Governance becomes a bottleneck", "Clear SLAs on approvals; fast-track for low-risk changes"],
+      ["High-impact use-case without HITL", "Charter review at registration flags this"]
+    ]
+  }
+};
+
+// Order for prev/next navigation
+const ORDER = ["1","2","3","4","5","TZ","6","7","8","9","10","11","CC-IAM","CC-CLASS","CC-SIEM","CC-SECRETS","CC-DR","CC-COMPLIANCE"];
+
+// ===== Panel rendering =====
+const overlay = document.getElementById("overlay");
+const panel = document.getElementById("panel");
+const panelClose = document.getElementById("panel-close");
+const panelNum = document.getElementById("panel-num");
+const panelTitle = document.getElementById("panel-title");
+const panelTag = document.getElementById("panel-tag");
+const panelTabs = document.getElementById("panel-tabs");
+const panelBody = document.getElementById("panel-body");
+const panelPosition = document.getElementById("panel-position");
+const navPrev = document.getElementById("nav-prev");
+const navNext = document.getElementById("nav-next");
+
+let currentId = null;
+let currentTab = "scope";
+
+const TABS = [
+  { id: "scope", label: "Scope" },
+  { id: "components", label: "Components" },
+  { id: "tech", label: "Tech" },
+  { id: "contracts", label: "Contracts" },
+  { id: "operations", label: "Operations" },
+  { id: "risks", label: "Risks" }
+];
+
+function renderList(items) {
+  if (!items || !items.length) return "<p style='color: var(--text-mute)'>—</p>";
+  return "<ul>" + items.map(i => "<li>" + i + "</li>").join("") + "</ul>";
+}
+
+function renderScope(b) {
+  return "<h3>Owns</h3>" + renderList(b.scope.owns) +
+         "<h3>Does not own</h3>" + renderList(b.scope.notOwns);
+}
+
+function renderRisks(items) {
+  if (!items || !items.length) return "<p style='color: var(--text-mute)'>—</p>";
+  const rows = items.map(([risk, mit]) =>
+    "<tr><td>" + risk + "</td><td>" + mit + "</td></tr>"
+  ).join("");
+  return "<table class='risk-table'><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody>" +
+    rows + "</tbody></table>";
+}
+
+function renderTabContent(b, tab) {
+  switch(tab) {
+    case "scope": return renderScope(b);
+    case "components": return renderList(b.components);
+    case "tech": return renderList(b.tech);
+    case "contracts": return renderList(b.contracts);
+    case "operations": return renderList(b.operations);
+    case "risks": return renderRisks(b.risks);
+  }
+}
+
+function renderTabs(envClass) {
+  panelTabs.innerHTML = TABS.map(t =>
+    `<button class="panel-tab${t.id === currentTab ? " active" : ""}" data-tab="${t.id}">${t.label}</button>`
+  ).join("");
+  panelTabs.querySelectorAll(".panel-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentTab = btn.dataset.tab;
+      const b = BLOCKS[currentId];
+      panelTabs.querySelectorAll(".panel-tab").forEach(x => x.classList.toggle("active", x.dataset.tab === currentTab));
+      panelBody.innerHTML = renderTabContent(b, currentTab);
+      panelBody.scrollTop = 0;
+    });
+  });
+}
+
+function open(id) {
+  const b = BLOCKS[id];
+  if (!b) return;
+  currentId = id;
+  panelNum.textContent = b.num;
+  panelNum.className = "panel-num " + b.env;
+  panelTitle.innerHTML = b.name;
+  panelTag.innerHTML = b.tag;
+  renderTabs(b.env);
+  panelBody.innerHTML = renderTabContent(b, currentTab);
+  panelBody.scrollTop = 0;
+
+  // prev/next
+  const idx = ORDER.indexOf(id);
+  navPrev.disabled = idx <= 0;
+  navNext.disabled = idx < 0 || idx >= ORDER.length - 1;
+  panelPosition.textContent = (idx + 1) + " / " + ORDER.length;
+
+  overlay.classList.add("open");
+  panel.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function close() {
+  overlay.classList.remove("open");
+  panel.classList.remove("open");
+  document.body.style.overflow = "";
+  currentId = null;
+}
+
+function navigate(delta) {
+  if (!currentId) return;
+  const idx = ORDER.indexOf(currentId);
+  const next = idx + delta;
+  if (next < 0 || next >= ORDER.length) return;
+  open(ORDER[next]);
+}
+
+// Wire up click handlers
+document.querySelectorAll("[data-block]").forEach(el => {
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    open(el.dataset.block);
+  });
+});
+panelClose.addEventListener("click", close);
+overlay.addEventListener("click", close);
+navPrev.addEventListener("click", () => navigate(-1));
+navNext.addEventListener("click", () => navigate(1));
+
+document.addEventListener("keydown", (e) => {
+  if (!panel.classList.contains("open")) return;
+  if (e.key === "Escape") close();
+  else if (e.key === "ArrowLeft") navigate(-1);
+  else if (e.key === "ArrowRight") navigate(1);
+});
+
+// Deep-link support (?block=9)
+const params = new URLSearchParams(window.location.search);
+const initial = params.get("block");
+if (initial && BLOCKS[initial]) open(initial);
+</script>
+</body>
+</html>

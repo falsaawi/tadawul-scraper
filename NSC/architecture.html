@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Two-Environment AI Architecture · Reference Design</title>
+<style>
+  :root {
+    --navy:       #0B1F3A;
+    --navy-2:     #132B4E;
+    --slate:      #1E3A5F;
+    --gold:       #C9A646;
+    --gold-soft:  #E2C878;
+    --ink:        #1A1F2E;
+    --ink-soft:   #3A4358;
+    --muted:      #5A6374;
+    --line:       #E2E6EC;
+    --bg:         #F5F7FA;
+    --card:       #FFFFFF;
+    --open:       #2563EB;
+    --open-soft:  #DBEAFE;
+    --closed:     #0E9F7E;
+    --closed-soft:#D1FAE5;
+    --gate:       #B45309;
+    --gate-soft:  #FEF3C7;
+    --danger:     #B91C1C;
+    --radius:     10px;
+    --radius-sm:  6px;
+    --shadow-sm:  0 1px 2px rgba(15,23,42,.05), 0 1px 1px rgba(15,23,42,.04);
+    --shadow-md:  0 4px 14px rgba(15,23,42,.08);
+    --shadow-lg:  0 14px 40px rgba(15,23,42,.12);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--slate); text-decoration: none; }
+  a:hover { color: var(--navy); }
+
+  /* ---------- HEADER / NAV ---------- */
+  header.topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--navy);
+    color: #fff;
+    border-bottom: 3px solid var(--gold);
+  }
+  .topbar-inner {
+    max-width: 1280px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 14px;
+    font-weight: 700; letter-spacing: .3px;
+  }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-soft));
+    display: grid; place-items: center;
+    color: var(--navy); font-weight: 900; font-size: 14px;
+  }
+  .brand-title { font-size: 15px; }
+  .brand-sub { font-size: 11.5px; color: #B8C2D5; font-weight: 500; letter-spacing:.4px; text-transform: uppercase; }
+  nav.primary-nav ul {
+    list-style: none; margin:0; padding:0; display: flex; gap: 22px; font-size: 13.5px;
+  }
+  nav.primary-nav a {
+    color: #D9E1EE; padding: 8px 0; border-bottom: 2px solid transparent; transition: all .15s;
+  }
+  nav.primary-nav a:hover { color: #fff; border-color: var(--gold); }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    background:
+      radial-gradient(1200px 500px at 10% -10%, rgba(201,166,70,.18), transparent 60%),
+      radial-gradient(900px 500px at 90% -20%, rgba(37,99,235,.18), transparent 60%),
+      linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+    color: #fff;
+    padding: 80px 28px 90px;
+  }
+  .hero-inner { max-width: 1280px; margin: 0 auto; }
+  .hero-kicker {
+    display: inline-flex; align-items:center; gap:10px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,.15);
+    padding: 6px 14px; border-radius: 999px;
+    font-size: 12px; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--gold-soft);
+  }
+  .hero-kicker .dot { width: 7px; height: 7px; border-radius:50%; background: var(--gold); }
+  h1.hero-title {
+    font-size: 46px; line-height: 1.1; margin: 18px 0 14px; font-weight: 800;
+    letter-spacing: -.5px;
+  }
+  h1.hero-title span.accent { color: var(--gold); }
+  .hero-sub { font-size: 18px; max-width: 840px; color: #D1D9E8; }
+  .hero-cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 20px; border-radius: 8px; font-weight: 600; font-size: 14px;
+    cursor: pointer; border: 1px solid transparent; transition: all .15s;
+  }
+  .btn-primary { background: var(--gold); color: var(--navy); }
+  .btn-primary:hover { background: var(--gold-soft); transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+  .btn-ghost:hover { background: rgba(255,255,255,.08); }
+
+  /* ---------- LAYOUT ---------- */
+  main { max-width: 1280px; margin: 0 auto; padding: 0 28px; }
+  section.block { padding: 64px 0; border-bottom: 1px solid var(--line); }
+  section.block:last-child { border-bottom: none; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--slate); font-weight: 700;
+  }
+  h2.section-title { font-size: 30px; margin: 6px 0 10px; letter-spacing: -.3px; color: var(--navy); }
+  .section-lead { font-size: 16px; color: var(--ink-soft); max-width: 920px; margin-bottom: 28px; }
+
+  /* ---------- CARDS & GRIDS ---------- */
+  .grid { display: grid; gap: 18px; }
+  .grid.c2 { grid-template-columns: 1fr 1fr; }
+  .grid.c3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.c4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) {
+    .grid.c2, .grid.c3, .grid.c4 { grid-template-columns: 1fr; }
+    h1.hero-title { font-size: 32px; }
+    nav.primary-nav { display: none; }
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px; box-shadow: var(--shadow-sm); transition: all .2s;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .card h3 { margin: 0 0 10px; font-size: 16px; color: var(--navy); }
+  .card p  { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .card .icon {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+    color: var(--gold); display:grid; place-items: center;
+    font-weight: 800; font-size: 16px; margin-bottom: 12px;
+  }
+  .card.open-themed .icon { background: linear-gradient(135deg,#1D4ED8,#2563EB); color:#fff; }
+  .card.closed-themed .icon { background: linear-gradient(135deg,#047857,#0E9F7E); color:#fff; }
+  .card.gate-themed .icon { background: linear-gradient(135deg,#92400E,#B45309); color:#fff; }
+
+  /* ---------- PRINCIPLE LIST ---------- */
+  .principle-list { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+  @media (max-width: 800px) { .principle-list { grid-template-columns: 1fr; } }
+  .principle {
+    display: flex; gap: 14px; padding: 16px; background: #fff;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+  }
+  .principle .num {
+    flex: 0 0 38px; height: 38px; border-radius: 8px;
+    background: var(--navy); color: var(--gold);
+    display: grid; place-items: center; font-weight: 800;
+  }
+  .principle .body h4 { margin:0 0 4px; font-size: 14px; color: var(--navy); }
+  .principle .body p  { margin:0; font-size: 13px; color: var(--ink-soft); }
+
+  /* ---------- TABLES ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+  table.nice { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.nice th, table.nice td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.nice thead th {
+    background: #F1F4F9; color: var(--navy); font-weight: 700; font-size: 12.5px;
+    letter-spacing:.3px; text-transform: uppercase; border-bottom: 2px solid var(--line);
+  }
+  table.nice tbody tr:last-child td { border-bottom: none; }
+  table.nice tbody tr:hover { background: #FAFBFD; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: var(--bg); color: var(--ink);
+  }
+  .pill.open   { background: var(--open-soft);   color: #1D4ED8; }
+  .pill.closed { background: var(--closed-soft); color: #065F46; }
+  .pill.gate   { background: var(--gate-soft);   color: #92400E; }
+  .pill.no     { background: #FEE2E2;            color: #991B1B; }
+  .pill.yes    { background: #D1FAE5;            color: #065F46; }
+
+  /* ---------- ARCHITECTURE DIAGRAM ---------- */
+  .diagram-wrap {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px; overflow-x: auto;
+    box-shadow: var(--shadow-sm);
+  }
+  .diagram-wrap svg { display:block; margin: 0 auto; max-width: 100%; height: auto; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .legend .li { display:flex; align-items:center; gap:6px; }
+  .legend .sw { width: 14px; height: 14px; border-radius: 3px; }
+
+  /* Interactive diagram highlight */
+  .node rect { transition: all .2s; cursor: pointer; }
+  .node:hover rect { filter: brightness(1.08); stroke-width: 2; }
+  .node text { pointer-events: none; }
+
+  /* ---------- FLOW STEPS ---------- */
+  .steps { display: grid; gap: 12px; }
+  .step {
+    display: grid; grid-template-columns: 56px 1fr; gap: 16px;
+    padding: 16px 18px; background: #fff; border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+  .step .n {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--navy), var(--slate));
+    color: var(--gold); font-weight: 800; display: grid; place-items: center;
+  }
+  .step h4 { margin: 0 0 2px; color: var(--navy); font-size: 15px; }
+  .step p  { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
+
+  /* ---------- PHASE CARDS ---------- */
+  .phases {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) { .phases { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .phases { grid-template-columns: 1fr; } }
+  .phase {
+    position: relative;
+    padding: 18px; border-radius: var(--radius);
+    background: linear-gradient(180deg, #fff, #FAFBFE);
+    border: 1px solid var(--line);
+  }
+  .phase-top { color: var(--gold); font-weight: 700; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+  .phase h3  { margin: 6px 0 10px; font-size: 16px; color: var(--navy); }
+  .phase ul  { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 13.5px; }
+  .phase ul li { margin-bottom: 4px; }
+
+  /* ---------- CALLOUT ---------- */
+  .callout {
+    display: grid; grid-template-columns: 64px 1fr; gap: 18px; align-items: center;
+    padding: 20px 22px; border-radius: var(--radius);
+    background: linear-gradient(90deg, #FFFBEB, #FEF3C7);
+    border: 1px solid #FDE68A; color: #78350F;
+  }
+  .callout .mark {
+    width: 48px; height: 48px; border-radius: 12px; background: var(--gate);
+    display: grid; place-items: center; color: #FEF3C7; font-weight: 900; font-size: 18px;
+  }
+  .callout h4 { margin: 0 0 4px; color: #78350F; font-size: 15px; }
+  .callout p  { margin: 0; font-size: 14px; color: #6B3F14; }
+
+  /* ---------- KEY STATS ---------- */
+  .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 18px; }
+  @media (max-width: 900px) { .stat-row { grid-template-columns: 1fr 1fr; } }
+  .stat {
+    padding: 18px; border-radius: var(--radius);
+    background: #fff; border: 1px solid var(--line); text-align: left;
+  }
+  .stat .big { font-size: 32px; font-weight: 800; color: var(--navy); letter-spacing: -.5px; }
+  .stat .lbl { font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+  .stat .desc { font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
+
+  /* ---------- FOOTER ---------- */
+  footer {
+    background: var(--navy); color: #CBD3E2; padding: 40px 28px;
+    margin-top: 24px;
+  }
+  .footer-inner { max-width: 1280px; margin: 0 auto; display:flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .footer-inner small { color: #8E99B3; }
+
+  /* ---------- TABS ---------- */
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 10px 16px; background: #fff; border: 1px solid var(--line);
+    border-radius: 8px; cursor: pointer; font-size: 13.5px; color: var(--ink-soft);
+    font-weight: 600; transition: all .15s;
+  }
+  .tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .tab:hover:not(.active) { border-color: var(--slate); color: var(--navy); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; animation: fade .25s ease; }
+  @keyframes fade { from{opacity:0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+
+  /* ---------- INFO BOX ---------- */
+  .info-box {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--navy); color: #fff;
+    padding: 14px 18px; border-radius: var(--radius);
+    max-width: 320px; font-size: 13px; box-shadow: var(--shadow-lg);
+    border-left: 4px solid var(--gold);
+    display: none; z-index: 100;
+  }
+  .info-box.show { display: block; animation: slideIn .2s ease; }
+  .info-box strong { color: var(--gold); display:block; margin-bottom:4px; }
+  @keyframes slideIn { from{transform: translateY(8px); opacity:0;} to{ transform:none; opacity:1;} }
+
+  .approval-list {
+    background: linear-gradient(180deg,#fff,#FAFBFE);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 8px;
+  }
+  .approval {
+    display: grid; grid-template-columns: 42px 1fr; gap: 14px;
+    padding: 14px 14px; align-items: start;
+    border-bottom: 1px solid var(--line);
+  }
+  .approval:last-child { border-bottom: none; }
+  .approval .check {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--closed-soft);
+    color: #065F46; display:grid; place-items: center; font-weight: 800; font-size: 14px;
+    margin-top: 2px;
+  }
+  .approval h4 { margin: 0 0 2px; font-size: 14.5px; color: var(--navy); }
+  .approval p  { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+
+  .anchor-pad { scroll-margin-top: 90px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">AI</div>
+      <div>
+        <div class="brand-title">Two-Environment AI Architecture</div>
+        <div class="brand-sub">Government · On-Premises · Reference Design</div>
+      </div>
+    </div>
+    <nav class="primary-nav">
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#principles">Principles</a></li>
+        <li><a href="#diagram">Architecture</a></li>
+        <li><a href="#environments">Environments</a></li>
+        <li><a href="#gateway">Gateway</a></li>
+        <li><a href="#routing">Routing</a></li>
+        <li><a href="#roadmap">Roadmap</a></li>
+        <li><a href="#approvals">Approvals</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<!-- ============== HERO ============== -->
+<section class="hero">
+  <div class="hero-inner">
+    <span class="hero-kicker"><span class="dot"></span> Executive Reference Design · v1.0</span>
+    <h1 class="hero-title">A secure, two-environment AI architecture for <span class="accent">government analytics</span>.</h1>
+    <p class="hero-sub">
+      One internet-connected environment for open-source collection, controlled intake, and bounded use of frontier LLMs.
+      One air-gapped environment for protected analytics, local open-source LLMs, and decision support.
+      Connected by a single governed, one-way transfer path.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#diagram">View Architecture ↓</a>
+      <a class="btn btn-ghost" href="#approvals">Approval Points</a>
+    </div>
+  </div>
+</section>
+
+<main>
+
+<!-- ============== OVERVIEW ============== -->
+<section class="block anchor-pad" id="overview">
+  <div class="eyebrow">Section 1 · Objective</div>
+  <h2 class="section-title">What this architecture enables</h2>
+  <p class="section-lead">
+    The agency needs to collect external information, receive controlled internal submissions, use frontier LLMs where policy allows, transfer approved artifacts into an air-gapped zone, and run trusted analytics and local AI on consolidated data — with auditable human accountability end-to-end.
+  </p>
+
+  <div class="stat-row">
+    <div class="stat">
+      <div class="lbl">Environments</div>
+      <div class="big">2</div>
+      <div class="desc">Open (internet-connected) and air-gapped — both on-premises.</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Trust Boundary</div>
+      <div class="big">1-way</div>
+      <div class="desc">Data flows open ➜ closed only, through a governed gateway.</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">AI Stacks</div>
+      <div class="big">2</div>
+      <div class="desc">Frontier LLMs (open side) + local open-source LLMs (closed side).</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Data Classes</div>
+      <div class="big">C0–C4</div>
+      <div class="desc">Five labels drive where data lives and who can use it.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== PRINCIPLES ============== -->
+<section class="block anchor-pad" id="principles">
+  <div class="eyebrow">Section 2 · Design Principles</div>
+  <h2 class="section-title">Twelve principles that shape every decision</h2>
+  <p class="section-lead">
+    Principles come first — technology follows. These guide architecture, operating model, and policy in both environments.
+  </p>
+
+  <div class="principle-list">
+    <div class="principle"><div class="num">01</div><div class="body"><h4>Trust-boundary-first design</h4><p>Separation is driven by risk and trust, not only by network topology.</p></div></div>
+    <div class="principle"><div class="num">02</div><div class="body"><h4>Data sensitivity determines environment</h4><p>The sensitivity class drives where data may live and who can process it.</p></div></div>
+    <div class="principle"><div class="num">03</div><div class="body"><h4>Least movement of sensitive data</h4><p>Only approved datasets cross environments; every movement is logged and justified.</p></div></div>
+    <div class="principle"><div class="num">04</div><div class="body"><h4>Open is not the system of record</h4><p>The open side is a staging, enrichment, and packaging zone — never authoritative.</p></div></div>
+    <div class="principle"><div class="num">05</div><div class="body"><h4>Public LLMs are bounded tools</h4><p>Used for extraction, classification, translation, summarization — never authoritative decisions.</p></div></div>
+    <div class="principle"><div class="num">06</div><div class="body"><h4>Local LLMs are enterprise-anchored</h4><p>Paired with retrieval, policy grounding, evaluation, and strong audit trails.</p></div></div>
+    <div class="principle"><div class="num">07</div><div class="body"><h4>Human-in-the-loop for high-impact outputs</h4><p>No sensitive output leaves the loop without accountable human review.</p></div></div>
+    <div class="principle"><div class="num">08</div><div class="body"><h4>Deterministic, auditable transfers</h4><p>Classify, DLP-scan, AV-scan, hash, sign, dual-approve, log — every artifact, every time.</p></div></div>
+    <div class="principle"><div class="num">09</div><div class="body"><h4>Defense in depth</h4><p>Independent controls at each layer: network, identity, data, model, application.</p></div></div>
+    <div class="principle"><div class="num">10</div><div class="body"><h4>Offline-first on the closed side</h4><p>Models, packages, updates arrive as signed offline bundles through the governed path.</p></div></div>
+    <div class="principle"><div class="num">11</div><div class="body"><h4>Separation of duties</h4><p>IT operates infrastructure; Data runs the service; Security governs policy & controls.</p></div></div>
+    <div class="principle"><div class="num">12</div><div class="body"><h4>Immutable raw, versioned derivatives</h4><p>Raw landing is write-once; curated and gold layers are versioned and reproducible.</p></div></div>
+  </div>
+</section>
+
+<!-- ============== DIAGRAM ============== -->
+<section class="block anchor-pad" id="diagram">
+  <div class="eyebrow">Section 3 · Enterprise Architecture</div>
+  <h2 class="section-title">The full picture — click any block for detail</h2>
+  <p class="section-lead">
+    Two environments under one governance umbrella, joined by a secure one-way gateway. Hover or tap a block to see its purpose.
+  </p>
+
+  <div class="diagram-wrap" id="archDiagramWrap">
+    <svg viewBox="0 0 1240 720" xmlns="http://www.w3.org/2000/svg" id="archSvg">
+      <defs>
+        <linearGradient id="openGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#DBEAFE"/>
+          <stop offset="100%" stop-color="#BFDBFE"/>
+        </linearGradient>
+        <linearGradient id="closedGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#D1FAE5"/>
+          <stop offset="100%" stop-color="#A7F3D0"/>
+        </linearGradient>
+        <linearGradient id="gateGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#FEF3C7"/>
+          <stop offset="100%" stop-color="#FDE68A"/>
+        </linearGradient>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#0B1F3A"/>
+        </marker>
+      </defs>
+
+      <!-- Open Environment background -->
+      <rect x="20" y="20" width="1200" height="260" rx="14" fill="url(#openGrad)" stroke="#60A5FA" stroke-width="1.5"/>
+      <text x="40" y="52" font-size="15" font-weight="700" fill="#1E3A8A">OPEN ENVIRONMENT · On-Prem · Internet-Connected</text>
+      <text x="40" y="72" font-size="12" fill="#1E3A8A">Controlled staging · External-AI enablement · Intake of open-source &amp; internal submissions</text>
+
+      <!-- Open blocks -->
+      <g class="node" data-info="External open-source feeds (APIs, RSS, portals) and authenticated internal team submissions — both enter here.">
+        <rect x="40"  y="100" width="180" height="150" rx="10" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="130" y="128" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">Sources</text>
+        <text x="130" y="150" font-size="11" text-anchor="middle" fill="#1E3A8A">Open-source feeds</text>
+        <text x="130" y="168" font-size="11" text-anchor="middle" fill="#1E3A8A">Internal team</text>
+        <text x="130" y="184" font-size="11" text-anchor="middle" fill="#1E3A8A">submissions</text>
+        <text x="130" y="210" font-size="10" text-anchor="middle" fill="#64748B">APIs · RSS · files · forms</text>
+      </g>
+
+      <g class="node" data-info="Policy gate — classifies every incoming item and routes it: LLM-eligible / prep-only / direct-transfer. The single most important control on the open side.">
+        <rect x="240" y="100" width="180" height="150" rx="10" fill="#FEF3C7" stroke="#B45309" stroke-width="2"/>
+        <text x="330" y="128" font-size="13" font-weight="700" text-anchor="middle" fill="#92400E">Policy Gate</text>
+        <text x="330" y="150" font-size="11" text-anchor="middle" fill="#92400E">Classify · Authenticate</text>
+        <text x="330" y="168" font-size="11" text-anchor="middle" fill="#92400E">Route submissions</text>
+        <text x="330" y="186" font-size="11" text-anchor="middle" fill="#92400E">3 paths</text>
+        <text x="330" y="214" font-size="10" text-anchor="middle" fill="#78350F">★ Critical control</text>
+      </g>
+
+      <g class="node" data-info="Raw landing (immutable) and prepared zones: cleaned, standardized, catalogued, tagged with labels and lineage.">
+        <rect x="440" y="100" width="180" height="150" rx="10" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="530" y="128" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">Raw &amp; Prepared</text>
+        <text x="530" y="150" font-size="11" text-anchor="middle" fill="#1E3A8A">Raw (immutable)</text>
+        <text x="530" y="168" font-size="11" text-anchor="middle" fill="#1E3A8A">Curated · Features</text>
+        <text x="530" y="184" font-size="11" text-anchor="middle" fill="#1E3A8A">Catalog · Lineage</text>
+        <text x="530" y="214" font-size="10" text-anchor="middle" fill="#64748B">Immutable &amp; versioned</text>
+      </g>
+
+      <g class="node" data-info="LLM Gateway mediates every frontier LLM call (Gemini, Claude, GPT). Only allowed classes (C0/C1) may be sent; prompts/responses are logged.">
+        <rect x="640" y="100" width="180" height="150" rx="10" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="730" y="128" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">AI Utility Layer</text>
+        <text x="730" y="150" font-size="11" text-anchor="middle" fill="#1E3A8A">LLM Gateway</text>
+        <text x="730" y="168" font-size="11" text-anchor="middle" fill="#1E3A8A">Gemini · Claude · GPT</text>
+        <text x="730" y="184" font-size="11" text-anchor="middle" fill="#1E3A8A">Prompt mgr · Guardrails</text>
+        <text x="730" y="214" font-size="10" text-anchor="middle" fill="#64748B">Bounded tasks only</text>
+      </g>
+
+      <g class="node" data-info="Packaging and release: classification, DLP scan, AV scan, schema check, manifest, hashes, signatures, dual-approval.">
+        <rect x="840" y="100" width="180" height="150" rx="10" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="930" y="128" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">Transfer Staging</text>
+        <text x="930" y="150" font-size="11" text-anchor="middle" fill="#1E3A8A">Classify · DLP · AV</text>
+        <text x="930" y="168" font-size="11" text-anchor="middle" fill="#1E3A8A">Manifest · Hash · Sign</text>
+        <text x="930" y="184" font-size="11" text-anchor="middle" fill="#1E3A8A">Dual approval</text>
+        <text x="930" y="214" font-size="10" text-anchor="middle" fill="#64748B">Single exit point</text>
+      </g>
+
+      <g class="node" data-info="Cross-cutting services: identity, secrets, logging, monitoring, segmentation, backups.">
+        <rect x="1040" y="100" width="160" height="150" rx="10" fill="#fff" stroke="#3B82F6" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="1120" y="128" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">Platform Services</text>
+        <text x="1120" y="150" font-size="11" text-anchor="middle" fill="#1E3A8A">IAM · Secrets</text>
+        <text x="1120" y="168" font-size="11" text-anchor="middle" fill="#1E3A8A">Logging · Monitor</text>
+        <text x="1120" y="186" font-size="11" text-anchor="middle" fill="#1E3A8A">Network · Backup</text>
+        <text x="1120" y="214" font-size="10" text-anchor="middle" fill="#64748B">Cross-cutting</text>
+      </g>
+
+      <!-- arrows open -->
+      <line x1="220" y1="175" x2="238" y2="175" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="420" y1="175" x2="438" y2="175" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="620" y1="175" x2="638" y2="175" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="820" y1="175" x2="838" y2="175" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- Gateway -->
+      <g class="node" data-info="Secure cross-domain gateway — the only sanctioned path between environments. Data diode, protocol break, re-inspection, signature verify, quarantine, dual-control approval, immutable audit log.">
+        <rect x="340" y="310" width="560" height="90" rx="10" fill="url(#gateGrad)" stroke="#B45309" stroke-width="2"/>
+        <text x="620" y="340" font-size="14" font-weight="700" text-anchor="middle" fill="#78350F">SECURE CROSS-DOMAIN GATEWAY · One-way (open → closed)</text>
+        <text x="620" y="362" font-size="12" text-anchor="middle" fill="#78350F">Data diode · Protocol break · Re-inspection · Signature verify · Quarantine · Dual approve · Immutable audit log</text>
+      </g>
+
+      <!-- Arrow down -->
+      <line x1="620" y1="260" x2="620" y2="308" stroke="#0B1F3A" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="620" y1="402" x2="620" y2="430" stroke="#0B1F3A" stroke-width="2" marker-end="url(#arrow)"/>
+
+      <!-- Closed Env background -->
+      <rect x="20" y="440" width="1200" height="260" rx="14" fill="url(#closedGrad)" stroke="#10B981" stroke-width="1.5"/>
+      <text x="40" y="472" font-size="15" font-weight="700" fill="#065F46">AIR-GAPPED ENVIRONMENT · On-Prem · Local Network Only</text>
+      <text x="40" y="492" font-size="12" fill="#065F46">Trusted enterprise data foundation · Local AI · Protected analytics &amp; decision support</text>
+
+      <g class="node" data-info="Decrypt, verify signatures & manifests, re-scan, quarantine suspicious artifacts, register imports into trusted storage.">
+        <rect x="40"  y="520" width="180" height="150" rx="10" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+        <text x="130" y="548" font-size="13" font-weight="700" text-anchor="middle" fill="#065F46">Secure Landing</text>
+        <text x="130" y="570" font-size="11" text-anchor="middle" fill="#065F46">Decrypt · Verify</text>
+        <text x="130" y="588" font-size="11" text-anchor="middle" fill="#065F46">Quarantine</text>
+        <text x="130" y="604" font-size="11" text-anchor="middle" fill="#065F46">Register imports</text>
+        <text x="130" y="630" font-size="10" text-anchor="middle" fill="#047857">Inbound control</text>
+      </g>
+
+      <g class="node" data-info="Internal systems of record: core DBs, document stores, operational files, reference &amp; master data.">
+        <rect x="240" y="520" width="180" height="150" rx="10" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+        <text x="330" y="548" font-size="13" font-weight="700" text-anchor="middle" fill="#065F46">Internal Sources</text>
+        <text x="330" y="570" font-size="11" text-anchor="middle" fill="#065F46">Core DBs</text>
+        <text x="330" y="588" font-size="11" text-anchor="middle" fill="#065F46">Files · Documents</text>
+        <text x="330" y="604" font-size="11" text-anchor="middle" fill="#065F46">Systems of record</text>
+        <text x="330" y="630" font-size="10" text-anchor="middle" fill="#047857">Authoritative</text>
+      </g>
+
+      <g class="node" data-info="Lakehouse (Raw / Curated / Gold / Semantic), feature store, catalog &amp; lineage. Policy-aware row/column access.">
+        <rect x="440" y="520" width="180" height="150" rx="10" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+        <text x="530" y="548" font-size="13" font-weight="700" text-anchor="middle" fill="#065F46">Trusted Data</text>
+        <text x="530" y="570" font-size="11" text-anchor="middle" fill="#065F46">Lakehouse</text>
+        <text x="530" y="588" font-size="11" text-anchor="middle" fill="#065F46">Feature store</text>
+        <text x="530" y="604" font-size="11" text-anchor="middle" fill="#065F46">Catalog · Lineage</text>
+        <text x="530" y="630" font-size="10" text-anchor="middle" fill="#047857">Policy-aware access</text>
+      </g>
+
+      <g class="node" data-info="Local open-source LLMs (Llama/Qwen/Mistral family), embeddings, vector DB, RAG, agents, guardrails, evaluation.">
+        <rect x="640" y="520" width="180" height="150" rx="10" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+        <text x="730" y="548" font-size="13" font-weight="700" text-anchor="middle" fill="#065F46">Local AI Services</text>
+        <text x="730" y="570" font-size="11" text-anchor="middle" fill="#065F46">Local LLMs</text>
+        <text x="730" y="588" font-size="11" text-anchor="middle" fill="#065F46">Vector DB · RAG</text>
+        <text x="730" y="604" font-size="11" text-anchor="middle" fill="#065F46">Eval · Guardrails</text>
+        <text x="730" y="630" font-size="10" text-anchor="middle" fill="#047857">Authoritative outputs</text>
+      </g>
+
+      <g class="node" data-info="Dashboards, reports, analyst workbench with chat + RAG, investigation tools, internal APIs.">
+        <rect x="840" y="520" width="180" height="150" rx="10" fill="#fff" stroke="#10B981" stroke-width="1.5"/>
+        <text x="930" y="548" font-size="13" font-weight="700" text-anchor="middle" fill="#065F46">Delivery Channels</text>
+        <text x="930" y="570" font-size="11" text-anchor="middle" fill="#065F46">Dashboards · Reports</text>
+        <text x="930" y="588" font-size="11" text-anchor="middle" fill="#065F46">Analyst workbench</text>
+        <text x="930" y="604" font-size="11" text-anchor="middle" fill="#065F46">Internal APIs</text>
+        <text x="930" y="630" font-size="10" text-anchor="middle" fill="#047857">Decision support</text>
+      </g>
+
+      <g class="node" data-info="Cross-cutting services: identity, HSM/KMS, model registry, audit, offline updates, backup &amp; DR.">
+        <rect x="1040" y="520" width="160" height="150" rx="10" fill="#fff" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="1120" y="548" font-size="13" font-weight="700" text-anchor="middle" fill="#065F46">Platform Services</text>
+        <text x="1120" y="570" font-size="11" text-anchor="middle" fill="#065F46">IAM · HSM/KMS</text>
+        <text x="1120" y="588" font-size="11" text-anchor="middle" fill="#065F46">Model registry</text>
+        <text x="1120" y="604" font-size="11" text-anchor="middle" fill="#065F46">Audit · Backup/DR</text>
+        <text x="1120" y="630" font-size="10" text-anchor="middle" fill="#047857">Cross-cutting</text>
+      </g>
+
+      <!-- arrows closed -->
+      <line x1="220" y1="595" x2="238" y2="595" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="420" y1="595" x2="438" y2="595" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="620" y1="595" x2="638" y2="595" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="820" y1="595" x2="838" y2="595" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow)"/>
+    </svg>
+  </div>
+  <div class="legend">
+    <div class="li"><div class="sw" style="background:#BFDBFE;"></div> Open environment</div>
+    <div class="li"><div class="sw" style="background:#A7F3D0;"></div> Air-gapped environment</div>
+    <div class="li"><div class="sw" style="background:#FDE68A;"></div> Cross-domain gateway</div>
+    <div class="li"><div class="sw" style="background:#fff;border:1px dashed #888;"></div> Cross-cutting services</div>
+  </div>
+</section>
+
+<!-- ============== DATA CLASSIFICATION ============== -->
+<section class="block anchor-pad" id="classification">
+  <div class="eyebrow">Section 4 · Data Classification</div>
+  <h2 class="section-title">Five classes govern where data can live</h2>
+  <p class="section-lead">
+    Every dataset, document, prompt, and model artifact carries a sensitivity label. The label determines where it can live, which LLMs may see it, and who can access it.
+  </p>
+
+  <div class="table-wrap">
+    <table class="nice">
+      <thead>
+        <tr>
+          <th>Class</th>
+          <th>Label</th>
+          <th>Allowed environments</th>
+          <th>Frontier LLMs</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>C0</strong></td><td>Public</td><td><span class="pill open">Open</span> <span class="pill closed">Closed</span></td><td><span class="pill yes">Allowed</span></td><td>News articles, published open data</td></tr>
+        <tr><td><strong>C1</strong></td><td>Internal-Open (non-sensitive)</td><td><span class="pill open">Open</span> <span class="pill closed">Closed</span></td><td><span class="pill yes">With review</span></td><td>Non-sensitive indicators derived from open data</td></tr>
+        <tr><td><strong>C2</strong></td><td>Internal</td><td><span class="pill closed">Closed only</span></td><td><span class="pill no">Blocked</span></td><td>Operational reports, internal statistics</td></tr>
+        <tr><td><strong>C3</strong></td><td>Sensitive</td><td><span class="pill closed">Closed only (restricted)</span></td><td><span class="pill no">Blocked</span></td><td>Personal data, case files</td></tr>
+        <tr><td><strong>C4</strong></td><td>Highly Sensitive</td><td><span class="pill closed">Closed only (enclave)</span></td><td><span class="pill no">Blocked</span></td><td>Classified or legally held material</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:16px;" class="callout">
+    <div class="mark">!</div>
+    <div>
+      <h4>Enforcement points</h4>
+      <p>Labels are assigned at ingestion, enforced at the Policy Gate, re-enforced at the LLM Gateway, re-checked by the Transfer Gateway, and applied again at query-time on the closed side.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============== ENVIRONMENTS TABS ============== -->
+<section class="block anchor-pad" id="environments">
+  <div class="eyebrow">Section 5 · Environments</div>
+  <h2 class="section-title">Inside each environment</h2>
+  <p class="section-lead">
+    Both environments are on-prem and managed by IT; the data function delivers the service on top.
+  </p>
+
+  <div class="tabs" id="envTabs">
+    <div class="tab active" data-tab="open">Open Environment</div>
+    <div class="tab" data-tab="gate">Policy Gate (critical)</div>
+    <div class="tab" data-tab="closed">Air-Gapped Environment</div>
+  </div>
+
+  <div class="tab-panel active" data-panel="open">
+    <div class="grid c3">
+      <div class="card open-themed"><div class="icon">1</div><h3>Source Ingestion</h3><p>Web/API collectors, RSS feeds, file intake, authenticated submission endpoints, source registration, scheduling.</p></div>
+      <div class="card open-themed"><div class="icon">2</div><h3>Raw Landing</h3><p>Near-immutable storage with timestamps, hashes, source IDs, and full collection metadata.</p></div>
+      <div class="card open-themed"><div class="icon">3</div><h3>Data Preparation</h3><p>Validation, standardization, schema mapping, deduplication, classification refinement, redaction, metadata tagging.</p></div>
+      <div class="card open-themed"><div class="icon">4</div><h3>Open AI Utility</h3><p>Gateway-based access to Gemini, Claude, GPT — for approved tasks only (extraction, classification, translation, summarization) on C0/C1 data only.</p></div>
+      <div class="card open-themed"><div class="icon">5</div><h3>Human Review &amp; Release</h3><p>Stewardship, exception handling, quality acceptance, transfer authorization, dual-control sign-off.</p></div>
+      <div class="card open-themed"><div class="icon">6</div><h3>Transfer Staging Vault</h3><p>Encrypted packaging with manifests, approvals, checksums, digital signatures, full lineage.</p></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-panel="gate">
+    <p class="section-lead" style="margin-bottom:18px;">
+      Because internal team submissions are collected <em>inside</em> the connected environment, the Policy Gate is the single most important control on the open side. Every submission is classified and routed to exactly one of three paths.
+    </p>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 1100 440" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0B1F3A"/>
+          </marker>
+        </defs>
+        <rect x="430" y="20" width="240" height="80" rx="10" fill="#FEF3C7" stroke="#B45309" stroke-width="2"/>
+        <text x="550" y="52" font-size="14" font-weight="700" text-anchor="middle" fill="#92400E">POLICY GATE</text>
+        <text x="550" y="74" font-size="11" text-anchor="middle" fill="#78350F">Authenticate · Classify · Route</text>
+
+        <line x1="550" y1="100" x2="180" y2="170" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow2)"/>
+        <line x1="550" y1="100" x2="550" y2="170" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow2)"/>
+        <line x1="550" y1="100" x2="920" y2="170" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+        <!-- Path A -->
+        <rect x="60" y="170" width="240" height="170" rx="10" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="180" y="200" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">PATH A · LLM-Eligible</text>
+        <text x="180" y="222" font-size="11" text-anchor="middle" fill="#1E3A8A">C0 / C1 only</text>
+        <text x="180" y="250" font-size="11" text-anchor="middle" fill="#1E3A8A">Preparation + LLM</text>
+        <text x="180" y="268" font-size="11" text-anchor="middle" fill="#1E3A8A">enrichment allowed</text>
+        <text x="180" y="296" font-size="10" text-anchor="middle" fill="#1E3A8A">Gemini / Claude / GPT</text>
+        <text x="180" y="314" font-size="10" text-anchor="middle" fill="#1E3A8A">via LLM Gateway</text>
+
+        <!-- Path B -->
+        <rect x="430" y="170" width="240" height="170" rx="10" fill="#FEE2E2" stroke="#B91C1C" stroke-width="1.5"/>
+        <text x="550" y="200" font-size="13" font-weight="700" text-anchor="middle" fill="#7F1D1D">PATH B · Prep-Only</text>
+        <text x="550" y="222" font-size="11" text-anchor="middle" fill="#7F1D1D">C2+ or restricted</text>
+        <text x="550" y="250" font-size="11" text-anchor="middle" fill="#7F1D1D">Preparation only</text>
+        <text x="550" y="268" font-size="11" text-anchor="middle" fill="#7F1D1D">No external AI access</text>
+        <text x="550" y="296" font-size="10" text-anchor="middle" fill="#7F1D1D">Protected all the way</text>
+        <text x="550" y="314" font-size="10" text-anchor="middle" fill="#7F1D1D">to the gateway</text>
+
+        <!-- Path C -->
+        <rect x="800" y="170" width="240" height="170" rx="10" fill="#E0E7FF" stroke="#4338CA" stroke-width="1.5"/>
+        <text x="920" y="200" font-size="13" font-weight="700" text-anchor="middle" fill="#3730A3">PATH C · Direct Transfer</text>
+        <text x="920" y="222" font-size="11" text-anchor="middle" fill="#3730A3">Pre-approved sensitive</text>
+        <text x="920" y="250" font-size="11" text-anchor="middle" fill="#3730A3">Seal &amp; queue for transfer</text>
+        <text x="920" y="268" font-size="11" text-anchor="middle" fill="#3730A3">immediately</text>
+        <text x="920" y="296" font-size="10" text-anchor="middle" fill="#3730A3">Minimal preparation</text>
+        <text x="920" y="314" font-size="10" text-anchor="middle" fill="#3730A3">in open environment</text>
+
+        <!-- converge -->
+        <line x1="180" y1="340" x2="540" y2="390" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow2)"/>
+        <line x1="550" y1="340" x2="550" y2="390" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow2)"/>
+        <line x1="920" y1="340" x2="560" y2="390" stroke="#0B1F3A" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+        <rect x="410" y="390" width="280" height="40" rx="8" fill="#FDE68A" stroke="#B45309" stroke-width="1.5"/>
+        <text x="550" y="414" font-size="12" font-weight="700" text-anchor="middle" fill="#78350F">Transfer Staging → Cross-Domain Gateway</text>
+      </svg>
+    </div>
+
+    <div class="callout" style="margin-top:18px;">
+      <div class="mark">!</div>
+      <div>
+        <h4>Hard rules at the gate</h4>
+        <p>Unauthenticated submissions are rejected. Unclassified items are quarantined. Anything labeled C2+ is <strong>never</strong> sent down Path A. Every routing decision is logged with submitter, timestamp, label, and policy version.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-panel="closed">
+    <div class="grid c3">
+      <div class="card closed-themed"><div class="icon">1</div><h3>Secure Landing &amp; Import Control</h3><p>Decrypt, verify signature &amp; manifest, re-scan, quarantine on anomaly, register imports, release to trusted storage.</p></div>
+      <div class="card closed-themed"><div class="icon">2</div><h3>Trusted Data Foundation</h3><p>Internal operational data, approved imported data, master data, historical snapshots, protected document stores.</p></div>
+      <div class="card closed-themed"><div class="icon">3</div><h3>Analytic Storage</h3><p>Lakehouse zones (Raw / Curated / Gold / Semantic), subject marts, feature store, data products.</p></div>
+      <div class="card closed-themed"><div class="icon">4</div><h3>Local AI Services</h3><p>Open-source LLM serving, embeddings, rerankers, retrieval, orchestration, guardrails, evaluation, fine-tuning.</p></div>
+      <div class="card closed-themed"><div class="icon">5</div><h3>Delivery Channels</h3><p>Dashboards, reports, analyst workbench (chat + RAG), search assistants, investigation tools, decision support.</p></div>
+      <div class="card closed-themed"><div class="icon">6</div><h3>Policy-Aware Access</h3><p>Row/column policies tied to data class × user clearance × purpose, enforced on every query path.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== GATEWAY ============== -->
+<section class="block anchor-pad" id="gateway">
+  <div class="eyebrow">Section 6 · Cross-Domain Gateway</div>
+  <h2 class="section-title">A single governed path — not a network link</h2>
+  <p class="section-lead">
+    The gateway is the single most security-critical component. It enforces classification, scanning, integrity, and dual-control approval before any artifact crosses the trust boundary.
+  </p>
+
+  <div class="grid c2">
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 560 460" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0B1F3A"/>
+          </marker>
+        </defs>
+        <g font-size="12" font-weight="600" fill="#0B1F3A">
+          <rect x="40" y="20"  width="480" height="40" rx="8" fill="#DBEAFE" stroke="#3B82F6"/>
+          <text x="280" y="44" text-anchor="middle">① Classification check — hard-reject C2+</text>
+          <rect x="40" y="70"  width="480" height="40" rx="8" fill="#DBEAFE" stroke="#3B82F6"/>
+          <text x="280" y="94" text-anchor="middle">② DLP scan — PII, secrets, keys, regulated patterns</text>
+          <rect x="40" y="120" width="480" height="40" rx="8" fill="#DBEAFE" stroke="#3B82F6"/>
+          <text x="280" y="144" text-anchor="middle">③ Malware / AV scan — multiple engines</text>
+          <rect x="40" y="170" width="480" height="40" rx="8" fill="#DBEAFE" stroke="#3B82F6"/>
+          <text x="280" y="194" text-anchor="middle">④ Schema &amp; format validation</text>
+          <rect x="40" y="220" width="480" height="40" rx="8" fill="#DBEAFE" stroke="#3B82F6"/>
+          <text x="280" y="244" text-anchor="middle">⑤ Manifest + SHA-256 + digital signature</text>
+          <rect x="40" y="270" width="480" height="40" rx="8" fill="#FEF3C7" stroke="#B45309"/>
+          <text x="280" y="294" text-anchor="middle" fill="#78350F">⑥ Dual human approver for batch release</text>
+          <rect x="40" y="320" width="480" height="40" rx="8" fill="#FEF3C7" stroke="#B45309"/>
+          <text x="280" y="344" text-anchor="middle" fill="#78350F">⑦ Hardware data diode / unidirectional link</text>
+          <rect x="40" y="370" width="480" height="40" rx="8" fill="#D1FAE5" stroke="#10B981"/>
+          <text x="280" y="394" text-anchor="middle" fill="#065F46">⑧ Re-inspection &amp; quarantine on closed side</text>
+          <rect x="40" y="420" width="480" height="30" rx="8" fill="#0B1F3A"/>
+          <text x="280" y="441" text-anchor="middle" fill="#C9A646">Every step → append-only audit log on both sides</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <h3 style="margin-top:0; color:var(--navy);">What never crosses</h3>
+      <ul style="color: var(--ink-soft); font-size: 14.5px;">
+        <li>Live network connections, remote shells, reverse proxies</li>
+        <li>Secrets, credentials, or tokens from the open side</li>
+        <li>User sessions, identities, or federation assertions</li>
+        <li>Any artifact labeled <strong>C2+</strong> (rejected at step 1)</li>
+        <li>Anything missing a valid, signed manifest</li>
+      </ul>
+
+      <h3 style="margin-top:24px; color:var(--navy);">Transfer cadence</h3>
+      <div class="table-wrap">
+        <table class="nice">
+          <thead><tr><th>Artifact</th><th>Cadence</th><th>Approval</th></tr></thead>
+          <tbody>
+            <tr><td>Curated open-source</td><td>Daily batch</td><td>Policy-automatic</td></tr>
+            <tr><td>LLM-enriched outputs</td><td>Daily batch</td><td>Policy-automatic</td></tr>
+            <tr><td>Internal submissions</td><td>As received</td><td>Steward sign-off</td></tr>
+            <tr><td>Model weights / updates</td><td>On release</td><td>Dual human approval</td></tr>
+            <tr><td>OS / dependency updates</td><td>Weekly</td><td>Dual human approval</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== AI LAYER ============== -->
+<section class="block anchor-pad" id="ai">
+  <div class="eyebrow">Section 7 · AI / LLM Layer</div>
+  <h2 class="section-title">Two distinct AI stacks — by design</h2>
+  <p class="section-lead">
+    Frontier LLMs enrich open-source material in the connected environment; local open-source LLMs produce authoritative outputs inside the air-gapped environment. Neither crosses the boundary.
+  </p>
+
+  <div class="grid c2">
+    <div class="card open-themed" style="padding: 26px;">
+      <div class="icon">☁</div>
+      <h3>Open Side — Frontier LLM Layer</h3>
+      <ul style="color: var(--ink-soft); font-size: 14px;">
+        <li>LLM Gateway routes to Gemini / Claude / GPT</li>
+        <li>Credentials live only in the gateway — never in user code</li>
+        <li>Per-team quotas &amp; cost caps</li>
+        <li>Prompts &amp; responses logged (secrets redacted)</li>
+        <li>Class enforcement: <strong>C0/C1 only</strong></li>
+        <li>Evaluation harness gates prompt/model changes</li>
+        <li>Bounded tasks: extract · classify · translate · summarize</li>
+      </ul>
+    </div>
+
+    <div class="card closed-themed" style="padding: 26px;">
+      <div class="icon">⎆</div>
+      <h3>Closed Side — Local LLM Platform</h3>
+      <ul style="color: var(--ink-soft); font-size: 14px;">
+        <li>GPU cluster for inference (vLLM / TGI / Triton)</li>
+        <li>Open-source models (Llama / Qwen / Mistral family)</li>
+        <li>Embeddings, rerankers, vector DB (pgvector / Milvus / Qdrant)</li>
+        <li>RAG pipeline: retrieve → rerank → filter by clearance → generate</li>
+        <li>Agent framework — tools restricted to internal APIs only</li>
+        <li>Fine-tuning (LoRA / QLoRA) on agency data; weights stay inside</li>
+        <li>Model registry with signed weights &amp; provenance</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============== END-TO-END FLOW ============== -->
+<section class="block anchor-pad" id="flow">
+  <div class="eyebrow">Section 8 · End-to-End Flow</div>
+  <h2 class="section-title">From collection to decision support</h2>
+  <p class="section-lead">
+    Every step emits metadata and audit records; lineage is preserved end-to-end.
+  </p>
+
+  <div class="steps">
+    <div class="step"><div class="n">1</div><div><h4>Collect</h4><p>Open-source data and authenticated team submissions enter the open environment.</p></div></div>
+    <div class="step"><div class="n">2</div><div><h4>Classify &amp; route</h4><p>Policy Gate labels every item and routes to LLM-eligible, prep-only, or direct-transfer.</p></div></div>
+    <div class="step"><div class="n">3</div><div><h4>Validate &amp; standardize</h4><p>Schema, quality, and policy checks; deduplication and metadata tagging.</p></div></div>
+    <div class="step"><div class="n">4</div><div><h4>Enrich with frontier LLMs</h4><p>Only for C0/C1 items. Prompts &amp; responses logged. Bounded tasks only.</p></div></div>
+    <div class="step"><div class="n">5</div><div><h4>Approve &amp; package</h4><p>Steward + security approve; package with manifest, checksums, digital signatures.</p></div></div>
+    <div class="step"><div class="n">6</div><div><h4>Transfer</h4><p>Cross-domain gateway performs re-inspection and quarantines anomalies.</p></div></div>
+    <div class="step"><div class="n">7</div><div><h4>Import &amp; integrate</h4><p>Closed side verifies and integrates with internal systems of record.</p></div></div>
+    <div class="step"><div class="n">8</div><div><h4>Analyze with local AI</h4><p>Local LLMs + RAG produce protected insights, clearance-aware, with citations.</p></div></div>
+    <div class="step"><div class="n">9</div><div><h4>Deliver decisions</h4><p>Dashboards, reports, analyst workbench — with human sign-off on high-impact outputs.</p></div></div>
+  </div>
+</section>
+
+<!-- ============== ROUTING ============== -->
+<section class="block anchor-pad" id="routing">
+  <div class="eyebrow">Section 9 · Use-Case Routing</div>
+  <h2 class="section-title">A simple rule for where each use case belongs</h2>
+  <p class="section-lead">
+    Use cases route by data sensitivity, need for enterprise context, and intended business outcome.
+  </p>
+
+  <div class="table-wrap">
+    <table class="nice">
+      <thead>
+        <tr><th>Dimension</th><th>Open Environment</th><th>Closed Environment</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Typical data class</td><td>C0 / C1</td><td>C2 / C3 / C4 (and any combination)</td></tr>
+        <tr><td>Typical AI use</td><td>Extraction, translation, summarization, classification</td><td>RAG, analyst copilots, private search, decision support</td></tr>
+        <tr><td>Business outcome</td><td>Preparation &amp; enrichment</td><td>Integrated analysis &amp; official consumption</td></tr>
+        <tr><td>Model type</td><td>Public LLMs via gateway</td><td>Local open-source / self-hosted LLMs</td></tr>
+        <tr><td>Human review</td><td>Required before transfer</td><td>Required for high-impact decisions</td></tr>
+        <tr><td>Data residency</td><td>Non-authoritative staging</td><td>Authoritative system of record</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout" style="margin-top:18px;">
+    <div class="mark">★</div>
+    <div>
+      <h4>Practical routing rule</h4>
+      <p>If a use case needs internal protected data, combines internal and external information, or supports an official decision, it belongs in the closed environment — even if some preparation steps happened earlier in the open environment.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============== GOVERNANCE ============== -->
+<section class="block anchor-pad" id="governance">
+  <div class="eyebrow">Section 10 · Governance &amp; Operating Model</div>
+  <h2 class="section-title">Clear ownership across four roles</h2>
+  <p class="section-lead">
+    IT operates the infrastructure; the Data &amp; Analytics function delivers the service; Information Security governs policy and controls; business owners steer use cases and accept high-impact outputs.
+  </p>
+
+  <div class="grid c4">
+    <div class="card"><div class="icon">IT</div><h3>IT Function</h3><p>Infrastructure, compute, storage, segmentation, transfer mechanisms, patching, backups, baseline monitoring.</p></div>
+    <div class="card"><div class="icon">DA</div><h3>Data &amp; Analytics</h3><p>Pipelines, metadata, data quality, prompt patterns, AI use cases, semantic models, business delivery.</p></div>
+    <div class="card"><div class="icon">IS</div><h3>Information Security</h3><p>Classification policy, public-LLM guardrails, transfer controls, risk review, audit requirements.</p></div>
+    <div class="card"><div class="icon">BO</div><h3>Business Owners</h3><p>Use-case prioritization, acceptance criteria, human approval of high-impact outputs, subject-matter grounding.</p></div>
+  </div>
+
+  <h3 style="margin-top:34px; color:var(--navy); font-size: 18px;">RACI · Key activities</h3>
+  <div class="table-wrap">
+    <table class="nice">
+      <thead><tr><th>Activity</th><th>Data</th><th>IT</th><th>Security</th><th>Steering</th></tr></thead>
+      <tbody>
+        <tr><td>Infra provisioning (both envs)</td><td>C</td><td>R/A</td><td>C</td><td>I</td></tr>
+        <tr><td>Network &amp; firewall rules</td><td>C</td><td>R/A</td><td>C</td><td>I</td></tr>
+        <tr><td>Cross-domain gateway operations</td><td>C</td><td>R</td><td>A</td><td>I</td></tr>
+        <tr><td>Data ingestion pipelines</td><td>R/A</td><td>C</td><td>C</td><td>I</td></tr>
+        <tr><td>Data classification policy</td><td>C</td><td>C</td><td>R</td><td>A</td></tr>
+        <tr><td>LLM selection &amp; evaluations</td><td>R/A</td><td>C</td><td>C</td><td>I</td></tr>
+        <tr><td>Model promotion to production</td><td>R</td><td>C</td><td>C</td><td>A</td></tr>
+        <tr><td>Incident response</td><td>C</td><td>R</td><td>R/A</td><td>I</td></tr>
+        <tr><td>Access reviews</td><td>C</td><td>R</td><td>R/A</td><td>I</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============== ROADMAP ============== -->
+<section class="block anchor-pad" id="roadmap">
+  <div class="eyebrow">Section 11 · Implementation Roadmap</div>
+  <h2 class="section-title">A phased path to production</h2>
+  <p class="section-lead">From foundations to enterprise scale — each phase builds on the previous.</p>
+
+  <div class="phases">
+    <div class="phase">
+      <div class="phase-top">Phase 0 · 0–2 mo</div>
+      <h3>Foundations</h3>
+      <ul>
+        <li>Governance set-up &amp; RACI</li>
+        <li>IT provisions both environments</li>
+        <li>VLANs, IAM, secrets, monitoring</li>
+        <li>Cross-domain gateway installed</li>
+        <li>Landing zones built</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-top">Phase 1 · 2–4 mo</div>
+      <h3>Open-Side MVP</h3>
+      <ul>
+        <li>2–3 open-source feeds end-to-end</li>
+        <li>Policy Gate live (3 routing paths)</li>
+        <li>LLM Gateway live (one frontier model)</li>
+        <li>First transfers through gateway</li>
+        <li>Audit pipelines running</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-top">Phase 2 · 4–7 mo</div>
+      <h3>Closed-Side MVP</h3>
+      <ul>
+        <li>Lakehouse &amp; catalog live</li>
+        <li>Top internal source connectors</li>
+        <li>Local LLM stack live</li>
+        <li>Analyst Workbench pilot</li>
+        <li>First integrated use case</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-top">Phase 3 · 7–12 mo</div>
+      <h3>Industrialize &amp; Scale</h3>
+      <ul>
+        <li>Domain fine-tuned models</li>
+        <li>Expanded sources &amp; use cases</li>
+        <li>Full observability</li>
+        <li>Pen test &amp; DR drills</li>
+        <li>Enterprise-wide adoption</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============== APPROVALS ============== -->
+<section class="block anchor-pad" id="approvals">
+  <div class="eyebrow">Section 12 · Approval Points</div>
+  <h2 class="section-title">What leadership is asked to approve</h2>
+  <p class="section-lead">These approvals unlock design finalization, procurement, and implementation.</p>
+
+  <div class="approval-list">
+    <div class="approval"><div class="check">✓</div><div><h4>Two-environment trust model</h4><p>Adopt the open + air-gapped pattern with a one-way transfer path between them.</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Public LLM scope</h4><p>Restrict frontier LLM use to the open environment and only for allowed data classes (C0/C1).</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Policy Gate for internal submissions</h4><p>Adopt the three-path routing model (LLM-eligible · prep-only · direct-transfer) as the critical open-side control.</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Closed-side authoritative outputs</h4><p>Protected analytics and official decision support execute inside the air-gapped environment.</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Data classification taxonomy (C0–C4)</h4><p>Adopt the five-class model and its enforcement points across the pipeline.</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Ownership split (RACI)</h4><p>Confirm the split across IT, Data &amp; Analytics, Information Security, and Business Owners.</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Cross-domain gateway design</h4><p>Endorse the one-way gateway with classification, DLP/AV, manifest, dual approval, and re-inspection.</p></div></div>
+    <div class="approval"><div class="check">✓</div><div><h4>Phased roadmap &amp; funding</h4><p>Approve the four-phase delivery plan and the associated funding profile.</p></div></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div>
+      <strong style="color:#fff;">Two-Environment AI Architecture</strong><br/>
+      <small>Reference design for a government data &amp; analytics function · On-premises · v1.0</small>
+    </div>
+    <div>
+      <small>Open environment · Secure gateway · Air-gapped environment</small>
+    </div>
+  </div>
+</footer>
+
+<div class="info-box" id="infoBox">
+  <strong id="infoTitle">Component</strong>
+  <span id="infoText">Hover a block to see its purpose.</span>
+</div>
+
+<script>
+  // Tab behavior
+  document.querySelectorAll('#envTabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const key = tab.dataset.tab;
+      document.querySelectorAll('#envTabs .tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === key));
+    });
+  });
+
+  // Interactive SVG info box
+  const infoBox = document.getElementById('infoBox');
+  const infoTitle = document.getElementById('infoTitle');
+  const infoText = document.getElementById('infoText');
+  document.querySelectorAll('#archSvg .node').forEach(node => {
+    const info = node.getAttribute('data-info');
+    const titleEl = node.querySelector('text');
+    const titleText = titleEl ? titleEl.textContent : 'Component';
+    node.addEventListener('mouseenter', () => {
+      infoTitle.textContent = titleText;
+      infoText.textContent = info;
+      infoBox.classList.add('show');
+    });
+    node.addEventListener('mouseleave', () => {
+      infoBox.classList.remove('show');
+    });
+    node.addEventListener('click', () => {
+      infoTitle.textContent = titleText;
+      infoText.textContent = info;
+      infoBox.classList.add('show');
+      setTimeout(() => infoBox.classList.remove('show'), 4000);
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { CompanySelector } from "@/components/company/company-selector";
 import { ProfileCard } from "@/components/company/profile-card";
@@ -31,10 +32,19 @@ interface CompanyData {
   corporateActions: Array<{ id: string; title: string; date: string | null; details: string | null }>;
 }
 
-export default function CompanyPage() {
+function CompanyPageInner() {
+  const searchParams = useSearchParams();
+  const initialSymbol = searchParams.get("symbol") || "";
   const [stocks, setStocks] = useState<Array<{ symbol: string; companyName: string }>>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedSymbol, setSelectedSymbol] = useState(initialSymbol);
   const [selectedSector, setSelectedSector] = useState("");
+
+  // Sync if URL changes (back/forward)
+  useEffect(() => {
+    const sym = searchParams.get("symbol") || "";
+    if (sym !== selectedSymbol) setSelectedSymbol(sym);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [companyData, setCompanyData] = useState<CompanyData | null>(null);
   const [stockAnalytics, setStockAnalytics] = useState<AnalyticsTimeSeriesResponse | null>(null);
   const [scraping, setScraping] = useState(false);
@@ -193,5 +203,13 @@ export default function CompanyPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function CompanyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <CompanyPageInner />
+    </Suspense>
   );
 }

@@ -1,12 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, BarChart3 } from "lucide-react";
+import { Activity, BarChart3, LogOut } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export function Header() {
+  const router = useRouter();
   const [time, setTime] = useState("");
   const [status, setStatus] = useState({ isOpen: false, message: "", nextEvent: "" });
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore — cookie may already be gone; we'll redirect anyway
+    }
+    router.replace("/login");
+    router.refresh();
+  }
 
   useEffect(() => {
     function update() {
@@ -98,6 +113,16 @@ export function Header() {
             <Activity className={`h-3 w-3 ${status.isOpen ? "text-green-400" : "text-red-400"}`} />
             {status.message}
           </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            title="Sign out"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent border border-border transition-colors disabled:opacity-50"
+          >
+            <LogOut className="h-3 w-3" />
+            <span className="hidden sm:inline">Sign out</span>
+          </button>
         </div>
       </div>
     </header>

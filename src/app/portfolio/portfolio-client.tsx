@@ -682,6 +682,31 @@ function brokerList(brokers: Array<{ capitalFirm: string }>): string {
   return `${brokers.length} brokers`;
 }
 
+function useSort<T, K extends string>(rows: T[], initialKey: K, getValue: (row: T, key: K) => string | number | null | undefined) {
+  const [sortKey, setSortKey] = useState<K>(initialKey);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const av = getValue(a, sortKey);
+      const bv = getValue(b, sortKey);
+      const aNum = typeof av === "string" ? null : av == null ? null : Number(av);
+      const bNum = typeof bv === "string" ? null : bv == null ? null : Number(bv);
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      const na = aNum == null ? -Infinity : aNum;
+      const nb = bNum == null ? -Infinity : bNum;
+      return sortDir === "asc" ? na - nb : nb - na;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, sortKey, sortDir]);
+  function head(k: K) {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("desc"); }
+  }
+  return { sorted, sortKey, sortDir, head };
+}
+
 function useRowEdit(opts: { endpoint: (id: string) => string; onSuccess: () => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -802,8 +827,12 @@ function SaudiStocksTab({
         )
       : rows;
     return [...list].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      let av: unknown = a[sortKey];
+      let bv: unknown = b[sortKey];
+      if (sortKey === "brokers") {
+        av = a.brokers.length;
+        bv = b.brokers.length;
+      }
       const na = av == null ? -Infinity : Number(av);
       const nb = bv == null ? -Infinity : Number(bv);
       if (typeof av === "string" && typeof bv === "string") {
@@ -919,7 +948,7 @@ function SaudiStocksTab({
               <th className="w-6"></th>
               <Th onClick={() => head("stockCode")}>Code</Th>
               <Th onClick={() => head("companyName")}>Company</Th>
-              <Th>Broker</Th>
+              <Th onClick={() => head("brokers")}>Broker</Th>
               <Th align="right" onClick={() => head("qty")}>Qty</Th>
               <Th align="right" onClick={() => head("avgCost")}>Avg cost</Th>
               <Th align="right" onClick={() => head("livePrice")}>Live price</Th>
@@ -1178,6 +1207,10 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
     endpoint: (id) => `/api/investment/saudi-fund/${id}`,
     onSuccess: onUpdated,
   });
+  type FundSortKey = "fundName" | "qty" | "avgCostPerUnit" | "totalCost" | "closePrice" | "marketValue" | "pnl" | "brokers";
+  const { sorted, head } = useSort<SaudiFund, FundSortKey>(rows, "marketValue", (r, k) =>
+    k === "brokers" ? r.brokers.length : (r[k] as string | number | null)
+  );
 
   function toggle(key: string) {
     setExpanded((s) => {
@@ -1211,19 +1244,19 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
           <thead className="bg-background border-b border-border text-muted-foreground">
             <tr>
               <th className="w-6"></th>
-              <th className="px-3 py-2 text-left font-medium">Fund</th>
-              <th className="px-3 py-2 text-left font-medium">Broker(s)</th>
-              <th className="px-3 py-2 text-right font-medium">Units</th>
-              <th className="px-3 py-2 text-right font-medium">Avg cost/unit</th>
-              <th className="px-3 py-2 text-right font-medium">Total cost</th>
-              <th className="px-3 py-2 text-right font-medium">NAV</th>
-              <th className="px-3 py-2 text-right font-medium">Market value</th>
-              <th className="px-3 py-2 text-right font-medium">P/L</th>
+              <Th onClick={() => head("fundName")}>Fund</Th>
+              <Th onClick={() => head("brokers")}>Broker(s)</Th>
+              <Th align="right" onClick={() => head("qty")}>Units</Th>
+              <Th align="right" onClick={() => head("avgCostPerUnit")}>Avg cost/unit</Th>
+              <Th align="right" onClick={() => head("totalCost")}>Total cost</Th>
+              <Th align="right" onClick={() => head("closePrice")}>NAV</Th>
+              <Th align="right" onClick={() => head("marketValue")}>Market value</Th>
+              <Th align="right" onClick={() => head("pnl")}>P/L</Th>
               <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((f) => {
+            {sorted.map((f) => {
               const pos = (f.pnl ?? 0) >= 0;
               const multi = f.brokers.length > 1;
               const open = expanded.has(f.fundName);
@@ -1332,6 +1365,11 @@ function UsaStocksTab({ rows, onUpdated }: { rows: UsaStock[]; onUpdated: () => 
     endpoint: (id) => `/api/investment/usa-stock/${id}`,
     onSuccess: onUpdated,
   });
+  type UsaSortKey = "ticker" | "qty" | "costValue" | "closePrice" | "marketValue" | "pnl";
+  const { sorted, head } = useSort<UsaStock, UsaSortKey>(rows, "marketValue", (r, k) => {
+    if (k === "pnl") return r.profitLoss ?? ((r.marketValue ?? 0) - (r.costValue ?? 0));
+    return r[k as Exclude<UsaSortKey, "pnl">];
+  });
   function saveUsa() {
     return edit.save({
       qty: Number(edit.values.qty),
@@ -1354,17 +1392,17 @@ function UsaStocksTab({ rows, onUpdated }: { rows: UsaStock[]; onUpdated: () => 
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Ticker</th>
-              <th className="px-3 py-2 text-right font-medium">Qty</th>
-              <th className="px-3 py-2 text-right font-medium">Cost</th>
-              <th className="px-3 py-2 text-right font-medium">Close</th>
-              <th className="px-3 py-2 text-right font-medium">Market value</th>
-              <th className="px-3 py-2 text-right font-medium">P/L</th>
+              <Th onClick={() => head("ticker")}>Ticker</Th>
+              <Th align="right" onClick={() => head("qty")}>Qty</Th>
+              <Th align="right" onClick={() => head("costValue")}>Cost</Th>
+              <Th align="right" onClick={() => head("closePrice")}>Close</Th>
+              <Th align="right" onClick={() => head("marketValue")}>Market value</Th>
+              <Th align="right" onClick={() => head("pnl")}>P/L</Th>
               <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((u) => {
+            {sorted.map((u) => {
               const pnl = u.profitLoss ?? ((u.marketValue ?? 0) - (u.costValue ?? 0));
               const pos = pnl >= 0;
               const isEditing = edit.editingId === u.id;
@@ -1414,6 +1452,8 @@ function GulfStocksTab({ rows, onUpdated }: { rows: GulfStock[]; onUpdated: () =
     endpoint: (id) => `/api/investment/gulf-stock/${id}`,
     onSuccess: onUpdated,
   });
+  type GulfSortKey = "capitalFirm" | "market" | "stockCode" | "qty" | "marketPrice" | "currentValue";
+  const { sorted, head } = useSort<GulfStock, GulfSortKey>(rows, "currentValue", (r, k) => r[k]);
   function saveGulf() {
     return edit.save({
       qty: Number(edit.values.qty),
@@ -1435,17 +1475,17 @@ function GulfStocksTab({ rows, onUpdated }: { rows: GulfStock[]; onUpdated: () =
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Broker</th>
-              <th className="px-3 py-2 text-left font-medium">Market</th>
-              <th className="px-3 py-2 text-left font-medium">Stock</th>
-              <th className="px-3 py-2 text-right font-medium">Qty</th>
-              <th className="px-3 py-2 text-right font-medium">Price</th>
-              <th className="px-3 py-2 text-right font-medium">Current value</th>
+              <Th onClick={() => head("capitalFirm")}>Broker</Th>
+              <Th onClick={() => head("market")}>Market</Th>
+              <Th onClick={() => head("stockCode")}>Stock</Th>
+              <Th align="right" onClick={() => head("qty")}>Qty</Th>
+              <Th align="right" onClick={() => head("marketPrice")}>Price</Th>
+              <Th align="right" onClick={() => head("currentValue")}>Current value</Th>
               <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((g) => {
+            {sorted.map((g) => {
               const isEditing = edit.editingId === g.id;
               return (
                 <tr key={g.id} className="border-b border-border/40 hover:bg-accent/50">
@@ -1489,6 +1529,8 @@ function CashTab({ rows, total, onUpdated }: { rows: CashRow[]; total: number; o
     endpoint: (id) => `/api/investment/cash/${id}`,
     onSuccess: onUpdated,
   });
+  type CashSortKey = "capitalFirm" | "portfolio" | "amount";
+  const { sorted, head } = useSort<CashRow, CashSortKey>(rows, "amount", (r, k) => r[k]);
   function saveCash() {
     return edit.save({ amount: Number(edit.values.amount) });
   }
@@ -1507,14 +1549,14 @@ function CashTab({ rows, total, onUpdated }: { rows: CashRow[]; total: number; o
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Broker</th>
-              <th className="px-3 py-2 text-left font-medium">Account / portfolio</th>
-              <th className="px-3 py-2 text-right font-medium">Amount</th>
+              <Th onClick={() => head("capitalFirm")}>Broker</Th>
+              <Th onClick={() => head("portfolio")}>Account / portfolio</Th>
+              <Th align="right" onClick={() => head("amount")}>Amount</Th>
               <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((c) => {
+            {sorted.map((c) => {
               const isEditing = edit.editingId === c.id;
               return (
                 <tr key={c.id} className="border-b border-border/40 hover:bg-accent/50">

@@ -157,3 +157,87 @@ model HistoricalPrice {
   @@index([symbol])
   @@index([date])
 }
+
+model InvestmentUpload {
+  id         String   @id @default(cuid())
+  fileName   String
+  uploadedAt DateTime @default(now())
+
+  cash        InvestmentCash[]
+  saudiStocks InvestmentSaudiStock[]
+  saudiFunds  InvestmentSaudiFund[]
+  usaStocks   InvestmentUsaStock[]
+  gulfStocks  InvestmentGulfStock[]
+
+  @@index([uploadedAt])
+}
+
+model InvestmentCash {
+  id          String           @id @default(cuid())
+  uploadId    String
+  upload      InvestmentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  capitalFirm String
+  portfolio   String?
+  amount      Float
+
+  @@index([uploadId])
+}
+
+model InvestmentSaudiStock {
+  id                 String           @id @default(cuid())
+  uploadId           String
+  upload             InvestmentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  capitalFirm        String
+  stockCode          String
+  qty                Float
+  stockCost          Float?
+  totalCost          Float?
+  brokerMarketPrice  Float?
+  brokerCurrentValue Float?
+
+  @@index([uploadId])
+  @@index([stockCode])
+}
+
+model InvestmentSaudiFund {
+  id          String           @id @default(cuid())
+  uploadId    String
+  upload      InvestmentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  capitalFirm String
+  fundName    String
+  qty         Float
+  costPerUnit Float?
+  totalCost   Float?
+  closePrice  Float?
+  marketValue Float?
+
+  @@index([uploadId])
+}
+
+model InvestmentUsaStock {
+  id          String           @id @default(cuid())
+  uploadId    String
+  upload      InvestmentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  ticker      String
+  qty         Float
+  costValue   Float?
+  closePrice  Float?
+  marketValue Float?
+  profitLoss  Float?
+
+  @@index([uploadId])
+}
+
+model InvestmentGulfStock {
+  id           String           @id @default(cuid())
+  uploadId     String
+  upload       InvestmentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  capitalFirm  String?
+  market       String
+  stockCode    String
+  qty          Float
+  marketPrice  Float?
+  currentValue Float?
+
+  @@index([uploadId])
+}

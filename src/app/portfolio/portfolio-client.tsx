@@ -468,23 +468,66 @@ function AllocationTreemap({ data }: { data: ApiResponse }) {
           Nothing to show
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <Treemap
-            data={treeData}
-            dataKey="size"
-            stroke="#0f172a"
-            isAnimationActive={false}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            content={<TreemapTile view={view} /> as any}
-            onClick={(p) => onClickNode(p as TreemapPayload)}
-          >
-            <Tooltip
-              content={<TreemapTooltip total={total} />}
-            />
-          </Treemap>
-        </ResponsiveContainer>
+        <>
+          <ResponsiveContainer width="100%" height={300}>
+            <Treemap
+              data={treeData}
+              dataKey="size"
+              stroke="#0f172a"
+              isAnimationActive={false}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              content={<TreemapTile view={view} /> as any}
+              onClick={(p) => onClickNode(p as TreemapPayload)}
+            >
+              <Tooltip content={<TreemapTooltip total={total} />} />
+            </Treemap>
+          </ResponsiveContainer>
+          <TreemapLegend view={view} nodes={nodes} total={total} onPick={(id) => setView(id)} />
+        </>
       )}
     </Panel>
+  );
+}
+
+function TreemapLegend({
+  view,
+  nodes,
+  total,
+  onPick,
+}: {
+  view: TreemapView;
+  nodes: TreemapNode[];
+  total: number;
+  onPick: (id: TreemapView) => void;
+}) {
+  return (
+    <div className="mt-3 pt-3 border-t border-border flex flex-wrap gap-x-3 gap-y-2 px-1">
+      {nodes.map((n, i) => {
+        const color =
+          view === "root"
+            ? CATEGORY_COLOR[n.name] ?? COLORS[i % COLORS.length]
+            : COLORS[i % COLORS.length];
+        const pct = total > 0 ? (n.value / total) * 100 : 0;
+        const clickable = view === "root";
+        return (
+          <button
+            key={n.id}
+            type="button"
+            onClick={() => clickable && onPick(n.id as TreemapView)}
+            disabled={!clickable}
+            className={`flex items-center gap-1.5 text-[11px] ${clickable ? "hover:text-foreground cursor-pointer" : "cursor-default"} text-foreground`}
+            title={`${n.name} · ${pct.toFixed(1)}%`}
+          >
+            <span
+              className="inline-block w-3 h-3 rounded-sm shrink-0 border border-black/30"
+              style={{ backgroundColor: color }}
+            />
+            <span className="font-medium truncate max-w-[180px]">{n.name}</span>
+            <span className="text-muted-foreground tabular-nums">{pct.toFixed(1)}%</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -524,7 +567,7 @@ function TreemapTile(props: TreemapPayload & { view?: TreemapView }) {
         height={height}
         style={{
           fill,
-          fillOpacity: 0.85,
+          fillOpacity: 1,
           stroke: "#0f172a",
           strokeWidth: 2,
           cursor: isRoot ? "pointer" : "default",
@@ -535,8 +578,11 @@ function TreemapTile(props: TreemapPayload & { view?: TreemapView }) {
           x={x + 8}
           y={y + 18}
           fontSize={11}
-          fontWeight={600}
+          fontWeight={700}
           fill="#fff"
+          stroke="#0f172a"
+          strokeWidth={3}
+          paintOrder="stroke"
           style={{ pointerEvents: "none" }}
         >
           {truncate(name ?? "", Math.floor(width / 7))}
@@ -547,7 +593,11 @@ function TreemapTile(props: TreemapPayload & { view?: TreemapView }) {
           x={x + 8}
           y={y + 34}
           fontSize={10}
-          fill="rgba(255,255,255,0.85)"
+          fontWeight={600}
+          fill="#fff"
+          stroke="#0f172a"
+          strokeWidth={2.5}
+          paintOrder="stroke"
           style={{ pointerEvents: "none" }}
         >
           {pct != null ? `${pct.toFixed(1)}%` : ""}
@@ -558,7 +608,11 @@ function TreemapTile(props: TreemapPayload & { view?: TreemapView }) {
           x={x + 8}
           y={y + 50}
           fontSize={10}
-          fill="rgba(255,255,255,0.7)"
+          fontWeight={500}
+          fill="#fff"
+          stroke="#0f172a"
+          strokeWidth={2.5}
+          paintOrder="stroke"
           style={{ pointerEvents: "none" }}
         >
           {SAR.format(size)}

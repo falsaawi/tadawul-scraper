@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { buildDiff, logTransaction } from "@/lib/portfolio-tx";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,13 @@ export async function PATCH(
       where: { id },
       data: updates,
     });
+    const diff = buildDiff(existing as unknown as Record<string, unknown>, updates);
+    if (Object.keys(diff).length > 0) {
+      await logTransaction("saudi-fund", "update", diff, {
+        entityId: id,
+        summary: `Edited fund ${updated.fundName}`,
+      });
+    }
     return NextResponse.json({ ok: true, holding: updated });
   } catch (err) {
     return NextResponse.json(

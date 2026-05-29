@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { logTransaction } from "@/lib/portfolio-tx";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -128,6 +129,26 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  await logTransaction(
+    "upload",
+    "upload",
+    {
+      fileName: upload.fileName,
+      counts: {
+        cash: body.cash?.length ?? 0,
+        saudiStocks: body.saudiStocks?.length ?? 0,
+        saudiFunds: body.saudiFunds?.length ?? 0,
+        usaStocks: body.usaStocks?.length ?? 0,
+        gulfStocks: body.gulfStocks?.length ?? 0,
+      },
+      total,
+    },
+    {
+      entityId: upload.id,
+      summary: `Uploaded ${upload.fileName} (${total} rows)`,
+    }
+  );
 
   return NextResponse.json({
     ok: true,

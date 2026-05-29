@@ -242,3 +242,16 @@ model InvestmentGulfStock {
 
   @@index([uploadId])
 }
+
+model InvestmentTransaction {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  entityType String   // 'upload' | 'saudi-stock' | 'saudi-fund' | 'usa-stock' | 'gulf-stock' | 'cash'
+  entityId   String?
+  action     String   // 'upload' | 'update'
+  summary    String?
+  changes    Json     // { field: { from, to } } for updates, { counts: {...} } for uploads
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}

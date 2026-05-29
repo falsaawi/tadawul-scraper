@@ -17,6 +17,7 @@ import {
   Check,
   X,
   Loader2,
+  History,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -30,6 +31,7 @@ import {
   Treemap,
 } from "recharts";
 import { UploadForm } from "./upload-form";
+import { HistoryModal } from "./history-modal";
 
 type Tab = "saudi-stocks" | "saudi-funds" | "usa" | "gulf" | "cash";
 
@@ -209,6 +211,7 @@ export function PortfolioClient() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -250,6 +253,13 @@ export function PortfolioClient() {
           >
             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
             Refresh
+          </button>
+          <button
+            onClick={() => setShowHistory(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent"
+          >
+            <History className="h-3 w-3" />
+            History
           </button>
           <button
             onClick={() => setShowUpload(true)}
@@ -302,6 +312,7 @@ export function PortfolioClient() {
           load();
         }}
       />
+      <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} />
     </>
   );
 }

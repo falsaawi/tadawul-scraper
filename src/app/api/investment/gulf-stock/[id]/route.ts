@@ -1,0 +1,102 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { buildDiff, logTransaction } from "@/lib/portfolio-tx";
+
+export const dynamic = "force-dynamic";
+
+interface PatchBody {
+  qty?: number;
+  marketPrice?: number;
+  capitalFirm?: string;
+  market?: string;
+  stockCode?: string;
+}
+
+function numOrNull(v: unknown, label: string): { ok: true; v: number | null } | { ok: false; err: string } {
+  if (v == null || v === "") return { ok: true, v: null };
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0)
+    return { ok: false, err: `${label} must be a non-negative number` };
+  return { ok: true, v: n };
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  let body: PatchBody;
+  try {
+    body = (await request.json()) as PatchBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const existing = await prisma.investmentGulfStock.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Holding not found" }, { status: 404 });
+
+  const updates: {
+    qty?: number;
+    marketPrice?: number | null;
+    currentValue?: number | null;
+    capitalFirm?: string | null;
+    market?: string;
+    stockCode?: string;
+  } = {};
+  if ("capitalFirm" in body) {
+    const s = body.capitalFirm == null ? null : String(body.capitalFirm).trim();
+    updates.capitalFirm = s && s.length > 0 ? s : null;
+  }
+  if (body.market != null) {
+    const s = String(body.market).trim();
+    if (!s) return NextResponse.json({ error: "Market cannot be empty" }, { status: 400 });
+    updates.market = s;
+  }
+  if (body.stockCode != null) {
+    const s = String(body.stockCode).trim();
+    if (!s) return NextResponse.json({ error: "Stock code cannot be empty" }, { status: 400 });
+    updates.stockCode = s;
+  }
+
+  if (body.qty != null) {
+    const r = numOrNull(body.qty, "Quantity");
+    if (!r.ok) return NextResponse.json({ error: r.err }, { status: 400 });
+    if (r.v == null) return NextResponse.json({ error: "Quantity required" }, { status: 400 });
+    updates.qty = r.v;
+  }
+  if ("marketPrice" in body) {
+    const r = numOrNull(body.marketPrice, "Market price");
+    if (!r.ok) return NextResponse.json({ error: r.err }, { status: 400 });
+    updates.marketPrice = r.v;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
+
+  const newQty = updates.qty ?? existing.qty;
+  const newPrice = "marketPrice" in updates ? updates.marketPrice : existing.marketPrice;
+  updates.currentValue = newPrice != null ? newPrice * newQty : existing.currentValue;
+
+  try {
+    const updated = await prisma.investmentGulfStock.update({
+      where: { id },
+      data: updates,
+    });
+    const diff = buildDiff(existing as unknown as Record<string, unknown>, updates);
+    if (Object.keys(diff).length > 0) {
+      await logTransaction("gulf-stock", "update", diff, {
+        entityId: id,
+        summary: `Edited Gulf stock ${updated.stockCode} (${updated.market})`,
+      });
+    }
+    return NextResponse.json({ ok: true, holding: updated });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to update", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}

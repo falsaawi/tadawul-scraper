@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 interface BrokerSlice {
+  id: string;
   capitalFirm: string;
   qty: number;
   totalCost: number | null;
@@ -148,6 +149,7 @@ export async function GET() {
       cur.brokerMarketPrice = h.brokerMarketPrice;
     }
     cur.brokers.push({
+      id: h.id,
       capitalFirm: h.capitalFirm,
       qty: h.qty,
       totalCost: h.totalCost,

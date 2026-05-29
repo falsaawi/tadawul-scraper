@@ -9,11 +9,14 @@ interface BrokerSlice {
   qty: number;
   totalCost: number | null;
   brokerCurrentValue: number | null;
+  companyName: string | null;
+  brokerMarketPrice: number | null;
 }
 
 interface SaudiStockRow {
   stockCode: string;
   companyName: string | null;
+  customCompanyName: string | null;
   sector: string | null;
   qty: number;
   avgCost: number | null;
@@ -23,6 +26,7 @@ interface SaudiStockRow {
   livePrice: number | null;
   liveValue: number | null;
   livePctChange: number | null;
+  priceSource: "live" | "manual" | "none";
   pnl: number | null;
   pnlPct: number | null;
   brokers: BrokerSlice[];
@@ -121,6 +125,7 @@ export async function GET() {
     brokerCurrentValue: number;
     hasBrokerValue: boolean;
     brokerMarketPrice: number | null;
+    customCompanyName: string | null;
     brokers: BrokerSlice[];
   };
   const saudiAgg = new Map<string, SaudiAgg>();
@@ -135,6 +140,7 @@ export async function GET() {
         brokerCurrentValue: 0,
         hasBrokerValue: false,
         brokerMarketPrice: null,
+        customCompanyName: null,
         brokers: [],
       } as SaudiAgg);
     cur.qty += h.qty;
@@ -149,12 +155,17 @@ export async function GET() {
     if (cur.brokerMarketPrice == null && h.brokerMarketPrice != null) {
       cur.brokerMarketPrice = h.brokerMarketPrice;
     }
+    if (cur.customCompanyName == null && h.companyName) {
+      cur.customCompanyName = h.companyName;
+    }
     cur.brokers.push({
       id: h.id,
       capitalFirm: h.capitalFirm,
       qty: h.qty,
       totalCost: h.totalCost,
       brokerCurrentValue: h.brokerCurrentValue,
+      companyName: h.companyName,
+      brokerMarketPrice: h.brokerMarketPrice,
     });
     saudiAgg.set(h.stockCode, cur);
   }
@@ -165,7 +176,9 @@ export async function GET() {
       priceMap.get(a.stockCode.padStart(4, "0")) ??
       priceMap.get(a.stockCode.replace(/^0+/, "")) ??
       null;
-    const livePrice = live?.price ?? null;
+    // Live price wins; fall back to broker market price for unmatched stocks
+    const livePrice = live?.price ?? a.brokerMarketPrice ?? null;
+    const isLive = live?.price != null;
     const liveValue = livePrice != null ? livePrice * a.qty : null;
     const totalCost = a.hasCost ? a.totalCost : null;
     const avgCost = totalCost != null && a.qty > 0 ? totalCost / a.qty : null;
@@ -177,7 +190,8 @@ export async function GET() {
         : null;
     return {
       stockCode: a.stockCode,
-      companyName: live?.companyName ?? null,
+      companyName: live?.companyName ?? a.customCompanyName ?? null,
+      customCompanyName: a.customCompanyName,
       sector: sectorMap.get(a.stockCode) ?? null,
       qty: a.qty,
       avgCost,
@@ -187,6 +201,7 @@ export async function GET() {
       livePrice,
       liveValue,
       livePctChange: live?.pct ?? null,
+      priceSource: isLive ? "live" : a.brokerMarketPrice != null ? "manual" : "none",
       pnl,
       pnlPct,
       brokers: a.brokers,

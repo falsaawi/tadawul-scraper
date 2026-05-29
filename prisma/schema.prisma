@@ -189,6 +189,7 @@ model InvestmentSaudiStock {
   upload             InvestmentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
   capitalFirm        String
   stockCode          String
+  companyName        String?
   qty                Float
   stockCost          Float?
   totalCost          Float?

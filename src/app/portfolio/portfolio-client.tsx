@@ -39,11 +39,14 @@ interface BrokerSlice {
   qty: number;
   totalCost: number | null;
   brokerCurrentValue: number | null;
+  companyName: string | null;
+  brokerMarketPrice: number | null;
 }
 
 interface SaudiStock {
   stockCode: string;
   companyName: string | null;
+  customCompanyName: string | null;
   sector: string | null;
   qty: number;
   avgCost: number | null;
@@ -53,6 +56,7 @@ interface SaudiStock {
   livePrice: number | null;
   liveValue: number | null;
   livePctChange: number | null;
+  priceSource: "live" | "manual" | "none";
   pnl: number | null;
   pnlPct: number | null;
   brokers: BrokerSlice[];
@@ -849,6 +853,8 @@ function SaudiStocksTab({
   const [editAvg, setEditAvg] = useState<string>("");
   const [editCode, setEditCode] = useState<string>("");
   const [editFirm, setEditFirm] = useState<string>("");
+  const [editName, setEditName] = useState<string>("");
+  const [editPrice, setEditPrice] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -898,13 +904,17 @@ function SaudiStocksTab({
     qty: number,
     avgCost: number | null,
     stockCode: string,
-    capitalFirm: string
+    capitalFirm: string,
+    companyName: string | null,
+    brokerMarketPrice: number | null
   ) {
     setEditingId(brokerId);
     setEditQty(String(qty));
     setEditAvg(avgCost != null ? String(avgCost) : "");
     setEditCode(stockCode);
     setEditFirm(capitalFirm);
+    setEditName(companyName ?? "");
+    setEditPrice(brokerMarketPrice != null ? String(brokerMarketPrice) : "");
     setSaveError(null);
   }
 
@@ -914,6 +924,8 @@ function SaudiStocksTab({
     setEditAvg("");
     setEditCode("");
     setEditFirm("");
+    setEditName("");
+    setEditPrice("");
     setSaveError(null);
   }
 
@@ -942,6 +954,12 @@ function SaudiStocksTab({
     setSaving(true);
     setSaveError(null);
     try {
+      const priceVal = editPrice === "" ? null : Number(editPrice);
+      if (priceVal != null && (!Number.isFinite(priceVal) || priceVal < 0)) {
+        setSaveError("Manual price must be a non-negative number");
+        setSaving(false);
+        return;
+      }
       const res = await fetch(`/api/investment/saudi-stock/${editingId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -950,6 +968,8 @@ function SaudiStocksTab({
           ...(avg != null ? { avgCost: avg } : {}),
           stockCode: code,
           capitalFirm: firm,
+          companyName: editName.trim() || null,
+          brokerMarketPrice: priceVal,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -1061,7 +1081,21 @@ function SaudiStocksTab({
                         r.stockCode
                       )}
                     </td>
-                    <td className="px-3 py-2 truncate max-w-[220px]">{r.companyName || <span className="text-muted-foreground italic">unknown</span>}</td>
+                    <td className="px-3 py-2 truncate max-w-[220px]">
+                      {isEditingMain ? (
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={onEditKey}
+                          disabled={saving}
+                          placeholder="Company name"
+                          className="w-44 px-1.5 py-0.5 bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                      ) : (
+                        r.companyName || <span className="text-muted-foreground italic">unknown</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground capitalize">
                       {isEditingMain ? (
                         <input
@@ -1112,7 +1146,28 @@ function SaudiStocksTab({
                         "—"
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">{r.livePrice?.toFixed(2) ?? "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {isEditingMain ? (
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={editPrice}
+                          onChange={(e) => setEditPrice(e.target.value)}
+                          onKeyDown={onEditKey}
+                          disabled={saving}
+                          placeholder="manual"
+                          className="w-20 px-1.5 py-0.5 text-right font-mono bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                      ) : r.livePrice != null ? (
+                        <span title={r.priceSource === "manual" ? "Manual price (no live match)" : undefined}>
+                          {r.livePrice.toFixed(2)}
+                          {r.priceSource === "manual" && <span className="ml-1 text-[8px] text-yellow-400 align-top">M</span>}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className={`px-3 py-2 text-right font-mono ${r.livePctChange == null ? "text-muted-foreground" : dayPos ? "text-green-400" : "text-red-400"}`}>
                       {r.livePctChange != null ? PCT(r.livePctChange) : "—"}
                     </td>
@@ -1131,7 +1186,15 @@ function SaudiStocksTab({
                         saving={saving && !!isEditingMain}
                         onEdit={() =>
                           onlyBroker &&
-                          beginEdit(onlyBroker.id, r.qty, r.avgCost, r.stockCode, onlyBroker.capitalFirm)
+                          beginEdit(
+                            onlyBroker.id,
+                            r.qty,
+                            r.avgCost,
+                            r.stockCode,
+                            onlyBroker.capitalFirm,
+                            onlyBroker.companyName ?? r.customCompanyName,
+                            onlyBroker.brokerMarketPrice ?? r.brokerMarketPrice
+                          )
                         }
                         onSave={saveEdit}
                         onCancel={cancelEdit}
@@ -1223,7 +1286,7 @@ function SaudiStocksTab({
                             editable
                             editing={isEditingThis}
                             saving={saving && isEditingThis}
-                            onEdit={() => beginEdit(b.id, b.qty, bAvg, r.stockCode, b.capitalFirm)}
+                            onEdit={() => beginEdit(b.id, b.qty, bAvg, r.stockCode, b.capitalFirm, b.companyName, b.brokerMarketPrice)}
                             onSave={saveEdit}
                             onCancel={cancelEdit}
                           />

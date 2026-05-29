@@ -8,6 +8,8 @@ interface PatchBody {
   avgCost?: number;
   stockCode?: string;
   capitalFirm?: string;
+  companyName?: string | null;
+  brokerMarketPrice?: number | null;
 }
 
 export async function PATCH(
@@ -29,9 +31,12 @@ export async function PATCH(
   const updates: {
     qty?: number;
     stockCost?: number;
-    totalCost?: number;
+    totalCost?: number | null;
     stockCode?: string;
     capitalFirm?: string;
+    companyName?: string | null;
+    brokerMarketPrice?: number | null;
+    brokerCurrentValue?: number | null;
   } = {};
   if (body.stockCode != null) {
     const s = String(body.stockCode).trim();
@@ -42,6 +47,22 @@ export async function PATCH(
     const s = String(body.capitalFirm).trim();
     if (!s) return NextResponse.json({ error: "Capital firm cannot be empty" }, { status: 400 });
     updates.capitalFirm = s;
+  }
+  if ("companyName" in body) {
+    const s = body.companyName == null ? null : String(body.companyName).trim();
+    updates.companyName = s && s.length > 0 ? s : null;
+  }
+  if ("brokerMarketPrice" in body) {
+    const raw = body.brokerMarketPrice;
+    if (raw == null) {
+      updates.brokerMarketPrice = null;
+    } else {
+      const p = Number(raw);
+      if (!Number.isFinite(p) || p < 0) {
+        return NextResponse.json({ error: "Broker market price must be a non-negative number" }, { status: 400 });
+      }
+      updates.brokerMarketPrice = p;
+    }
   }
   if (body.qty != null) {
     const q = Number(body.qty);
@@ -64,14 +85,11 @@ export async function PATCH(
     updates.stockCost = a;
   }
 
-  if (updates.qty == null && updates.stockCost == null) {
-    return NextResponse.json(
-      { error: "Provide qty and/or avgCost to update" },
-      { status: 400 }
-    );
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
-  // Read existing to compute totalCost from the resulting combination
+  // Read existing to compute totalCost / brokerCurrentValue from the resulting combination
   const existing = await prisma.investmentSaudiStock.findUnique({
     where: { id },
   });
@@ -83,6 +101,14 @@ export async function PATCH(
   const newAvg = updates.stockCost ?? existing.stockCost ?? null;
   if (newAvg != null) {
     updates.totalCost = newAvg * newQty;
+  } else if (updates.qty != null) {
+    updates.totalCost = null;
+  }
+  const newPrice = "brokerMarketPrice" in updates ? updates.brokerMarketPrice : existing.brokerMarketPrice;
+  if (newPrice != null) {
+    updates.brokerCurrentValue = newPrice * newQty;
+  } else if (updates.qty != null) {
+    updates.brokerCurrentValue = existing.brokerCurrentValue;
   }
 
   try {

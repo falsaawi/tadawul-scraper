@@ -421,7 +421,6 @@ function GainByTypePanel({
   const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
   const totalCost = rows.reduce((s, r) => s + r.cost, 0);
   const totalPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
   return (
     <Panel
       title="Gain by asset type"
@@ -431,9 +430,9 @@ function GainByTypePanel({
         </span>
       }
     >
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
         {rows.map((r) => (
-          <GainBar
+          <GainCard
             key={r.type}
             label={r.type}
             color={CATEGORY_COLOR[r.type] ?? "#22c55e"}
@@ -441,7 +440,6 @@ function GainByTypePanel({
             cost={r.cost}
             pnl={r.pnl}
             pnlPct={r.pnlPct}
-            maxAbs={maxAbs}
           />
         ))}
       </div>
@@ -457,7 +455,6 @@ function GainByBrokerPanel({
   const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
   const totalCost = rows.reduce((s, r) => s + r.cost, 0);
   const totalPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
   return (
     <Panel
       title="Gain by broker"
@@ -467,36 +464,35 @@ function GainByBrokerPanel({
         </span>
       }
     >
-      <div className="space-y-2">
-        {rows.map((r, i) => (
-          <GainBar
-            key={r.broker}
-            label={r.broker}
-            color={COLORS[i % COLORS.length]}
-            value={r.investedValue}
-            cost={r.cost}
-            pnl={r.pnl}
-            pnlPct={r.pnlPct}
-            maxAbs={maxAbs}
-            capitalize
-          />
-        ))}
-        {rows.length === 0 && (
-          <div className="text-xs text-muted-foreground py-4 text-center">No broker data</div>
-        )}
-      </div>
+      {rows.length === 0 ? (
+        <div className="text-xs text-muted-foreground py-4 text-center">No broker data</div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {rows.map((r, i) => (
+            <GainCard
+              key={r.broker}
+              label={r.broker}
+              color={COLORS[i % COLORS.length]}
+              value={r.investedValue}
+              cost={r.cost}
+              pnl={r.pnl}
+              pnlPct={r.pnlPct}
+              capitalize
+            />
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }
 
-function GainBar({
+function GainCard({
   label,
   color,
   value,
   cost,
   pnl,
   pnlPct,
-  maxAbs,
   capitalize,
 }: {
   label: string;
@@ -505,35 +501,37 @@ function GainBar({
   cost: number;
   pnl: number;
   pnlPct: number;
-  maxAbs: number;
   capitalize?: boolean;
 }) {
   const pos = pnl >= 0;
-  const width = `${Math.min(100, (Math.abs(pnl) / maxAbs) * 100)}%`;
+  const hasCost = cost > 0;
   return (
-    <div>
-      <div className="flex items-center justify-between text-xs mb-1">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-          <span className={`font-medium truncate ${capitalize ? "capitalize" : ""}`}>{label}</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 font-mono">
-          <span className={`font-semibold ${pos ? "text-green-400" : "text-red-400"}`}>
+    <div className="bg-background border border-border rounded-lg p-2.5">
+      <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+        <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+        <span className={`text-[11px] font-medium truncate ${capitalize ? "capitalize" : ""}`}>{label}</span>
+      </div>
+      {hasCost ? (
+        <>
+          <div className={`text-sm font-mono font-semibold ${pos ? "text-green-400" : "text-red-400"}`}>
             {(pos ? "+" : "") + SAR.format(pnl)}
-          </span>
-          <span className={`text-[10px] ${pos ? "text-green-400" : "text-red-400"}`}>{PCT(pnlPct)}</span>
-        </div>
-      </div>
-      <div className="relative h-1.5 bg-background rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${pos ? "bg-green-400" : "bg-red-400"}`}
-          style={{ width }}
-        />
-      </div>
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
-        <span>Cost {SAR.format(cost)}</span>
-        <span>Value {SAR.format(value)}</span>
-      </div>
+          </div>
+          <div className={`text-[10px] font-mono ${pos ? "text-green-400" : "text-red-400"}`}>
+            {PCT(pnlPct)}
+          </div>
+          <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center justify-between text-[9px] text-muted-foreground">
+            <span>{SAR.format(cost)}</span>
+            <span>→ {SAR.format(value)}</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="text-sm font-mono font-semibold text-foreground">
+            {SAR.format(value)}
+          </div>
+          <div className="text-[10px] text-muted-foreground">no cost basis</div>
+        </>
+      )}
     </div>
   );
 }

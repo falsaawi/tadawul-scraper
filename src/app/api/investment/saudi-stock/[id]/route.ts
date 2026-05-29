@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 interface PatchBody {
   qty?: number;
   avgCost?: number;
+  stockCode?: string;
+  capitalFirm?: string;
 }
 
 export async function PATCH(
@@ -24,7 +26,23 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const updates: { qty?: number; stockCost?: number; totalCost?: number } = {};
+  const updates: {
+    qty?: number;
+    stockCost?: number;
+    totalCost?: number;
+    stockCode?: string;
+    capitalFirm?: string;
+  } = {};
+  if (body.stockCode != null) {
+    const s = String(body.stockCode).trim();
+    if (!s) return NextResponse.json({ error: "Stock code cannot be empty" }, { status: 400 });
+    updates.stockCode = s;
+  }
+  if (body.capitalFirm != null) {
+    const s = String(body.capitalFirm).trim();
+    if (!s) return NextResponse.json({ error: "Capital firm cannot be empty" }, { status: 400 });
+    updates.capitalFirm = s;
+  }
   if (body.qty != null) {
     const q = Number(body.qty);
     if (!Number.isFinite(q) || q < 0) {

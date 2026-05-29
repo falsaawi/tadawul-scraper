@@ -7,6 +7,7 @@ interface PatchBody {
   qty?: number;
   costValue?: number;
   closePrice?: number;
+  ticker?: string;
 }
 
 function numOrNull(v: unknown, label: string): { ok: true; v: number | null } | { ok: false; err: string } {
@@ -40,7 +41,13 @@ export async function PATCH(
     closePrice?: number | null;
     marketValue?: number | null;
     profitLoss?: number | null;
+    ticker?: string;
   } = {};
+  if (body.ticker != null) {
+    const s = String(body.ticker).trim().toUpperCase();
+    if (!s) return NextResponse.json({ error: "Ticker cannot be empty" }, { status: 400 });
+    updates.ticker = s;
+  }
 
   if (body.qty != null) {
     const r = numOrNull(body.qty, "Quantity");

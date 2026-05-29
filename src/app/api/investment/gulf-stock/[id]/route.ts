@@ -6,6 +6,9 @@ export const dynamic = "force-dynamic";
 interface PatchBody {
   qty?: number;
   marketPrice?: number;
+  capitalFirm?: string;
+  market?: string;
+  stockCode?: string;
 }
 
 function numOrNull(v: unknown, label: string): { ok: true; v: number | null } | { ok: false; err: string } {
@@ -37,7 +40,24 @@ export async function PATCH(
     qty?: number;
     marketPrice?: number | null;
     currentValue?: number | null;
+    capitalFirm?: string | null;
+    market?: string;
+    stockCode?: string;
   } = {};
+  if ("capitalFirm" in body) {
+    const s = body.capitalFirm == null ? null : String(body.capitalFirm).trim();
+    updates.capitalFirm = s && s.length > 0 ? s : null;
+  }
+  if (body.market != null) {
+    const s = String(body.market).trim();
+    if (!s) return NextResponse.json({ error: "Market cannot be empty" }, { status: 400 });
+    updates.market = s;
+  }
+  if (body.stockCode != null) {
+    const s = String(body.stockCode).trim();
+    if (!s) return NextResponse.json({ error: "Stock code cannot be empty" }, { status: 400 });
+    updates.stockCode = s;
+  }
 
   if (body.qty != null) {
     const r = numOrNull(body.qty, "Quantity");

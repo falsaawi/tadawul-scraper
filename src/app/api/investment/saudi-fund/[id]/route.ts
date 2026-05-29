@@ -7,6 +7,8 @@ interface PatchBody {
   qty?: number;
   costPerUnit?: number;
   closePrice?: number;
+  fundName?: string;
+  capitalFirm?: string;
 }
 
 function numOrNull(v: unknown, label: string): { ok: true; v: number | null } | { ok: false; err: string } {
@@ -42,7 +44,19 @@ export async function PATCH(
     totalCost?: number | null;
     closePrice?: number | null;
     marketValue?: number | null;
+    fundName?: string;
+    capitalFirm?: string;
   } = {};
+  if (body.fundName != null) {
+    const s = String(body.fundName).trim();
+    if (!s) return NextResponse.json({ error: "Fund name cannot be empty" }, { status: 400 });
+    updates.fundName = s;
+  }
+  if (body.capitalFirm != null) {
+    const s = String(body.capitalFirm).trim();
+    if (!s) return NextResponse.json({ error: "Capital firm cannot be empty" }, { status: 400 });
+    updates.capitalFirm = s;
+  }
 
   if (body.qty != null) {
     const r = numOrNull(body.qty, "Quantity");

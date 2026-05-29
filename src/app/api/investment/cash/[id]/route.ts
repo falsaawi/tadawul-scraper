@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 
 interface PatchBody {
   amount?: number;
+  capitalFirm?: string;
+  portfolio?: string | null;
 }
 
 export async function PATCH(
@@ -21,21 +23,38 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (body.amount == null) {
-    return NextResponse.json({ error: "Amount required" }, { status: 400 });
+  const updates: {
+    amount?: number;
+    capitalFirm?: string;
+    portfolio?: string | null;
+  } = {};
+  if (body.amount != null) {
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return NextResponse.json(
+        { error: "Amount must be a non-negative number" },
+        { status: 400 }
+      );
+    }
+    updates.amount = amount;
   }
-  const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount < 0) {
-    return NextResponse.json(
-      { error: "Amount must be a non-negative number" },
-      { status: 400 }
-    );
+  if (body.capitalFirm != null) {
+    const s = String(body.capitalFirm).trim();
+    if (!s) return NextResponse.json({ error: "Broker cannot be empty" }, { status: 400 });
+    updates.capitalFirm = s;
+  }
+  if ("portfolio" in body) {
+    const s = body.portfolio == null ? null : String(body.portfolio).trim();
+    updates.portfolio = s && s.length > 0 ? s : null;
+  }
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   try {
     const updated = await prisma.investmentCash.update({
       where: { id },
-      data: { amount },
+      data: updates,
     });
     return NextResponse.json({ ok: true, cash: updated });
   } catch (err) {

@@ -795,6 +795,41 @@ function EditNumberInput({
   );
 }
 
+function EditTextInput({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  disabled,
+  width = "w-28",
+  align = "left",
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  disabled?: boolean;
+  width?: string;
+  align?: "left" | "right";
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSave();
+        if (e.key === "Escape") onCancel();
+      }}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={`${width} px-1.5 py-0.5 ${align === "right" ? "text-right" : "text-left"} font-mono bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50`}
+    />
+  );
+}
+
 function SaudiStocksTab({
   rows,
   unmatched,
@@ -812,6 +847,8 @@ function SaudiStocksTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState<string>("");
   const [editAvg, setEditAvg] = useState<string>("");
+  const [editCode, setEditCode] = useState<string>("");
+  const [editFirm, setEditFirm] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -856,10 +893,18 @@ function SaudiStocksTab({
     });
   }
 
-  function beginEdit(brokerId: string, qty: number, avgCost: number | null) {
+  function beginEdit(
+    brokerId: string,
+    qty: number,
+    avgCost: number | null,
+    stockCode: string,
+    capitalFirm: string
+  ) {
     setEditingId(brokerId);
     setEditQty(String(qty));
     setEditAvg(avgCost != null ? String(avgCost) : "");
+    setEditCode(stockCode);
+    setEditFirm(capitalFirm);
     setSaveError(null);
   }
 
@@ -867,6 +912,8 @@ function SaudiStocksTab({
     setEditingId(null);
     setEditQty("");
     setEditAvg("");
+    setEditCode("");
+    setEditFirm("");
     setSaveError(null);
   }
 
@@ -874,6 +921,8 @@ function SaudiStocksTab({
     if (!editingId) return;
     const qty = Number(editQty);
     const avg = editAvg === "" ? null : Number(editAvg);
+    const code = editCode.trim();
+    const firm = editFirm.trim();
     if (!Number.isFinite(qty) || qty < 0) {
       setSaveError("Quantity must be a non-negative number");
       return;
@@ -882,13 +931,26 @@ function SaudiStocksTab({
       setSaveError("Avg cost must be a non-negative number");
       return;
     }
+    if (!code) {
+      setSaveError("Stock code is required");
+      return;
+    }
+    if (!firm) {
+      setSaveError("Broker is required");
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
       const res = await fetch(`/api/investment/saudi-stock/${editingId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ qty, ...(avg != null ? { avgCost: avg } : {}) }),
+        body: JSON.stringify({
+          qty,
+          ...(avg != null ? { avgCost: avg } : {}),
+          stockCode: code,
+          capitalFirm: firm,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -985,9 +1047,35 @@ function SaudiStocksTab({
                         <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
                       )}
                     </td>
-                    <td className="px-3 py-2 font-mono font-medium">{r.stockCode}</td>
+                    <td className="px-3 py-2 font-mono font-medium">
+                      {isEditingMain ? (
+                        <input
+                          type="text"
+                          value={editCode}
+                          onChange={(e) => setEditCode(e.target.value)}
+                          onKeyDown={onEditKey}
+                          disabled={saving}
+                          className="w-16 px-1.5 py-0.5 font-mono bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                      ) : (
+                        r.stockCode
+                      )}
+                    </td>
                     <td className="px-3 py-2 truncate max-w-[220px]">{r.companyName || <span className="text-muted-foreground italic">unknown</span>}</td>
-                    <td className="px-3 py-2 text-muted-foreground capitalize">{brokerList(r.brokers)}</td>
+                    <td className="px-3 py-2 text-muted-foreground capitalize">
+                      {isEditingMain ? (
+                        <input
+                          type="text"
+                          value={editFirm}
+                          onChange={(e) => setEditFirm(e.target.value)}
+                          onKeyDown={onEditKey}
+                          disabled={saving}
+                          className="w-28 px-1.5 py-0.5 bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                      ) : (
+                        brokerList(r.brokers)
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono">
                       {isEditingMain ? (
                         <input
@@ -1042,7 +1130,8 @@ function SaudiStocksTab({
                         editing={!!isEditingMain}
                         saving={saving && !!isEditingMain}
                         onEdit={() =>
-                          onlyBroker && beginEdit(onlyBroker.id, r.qty, r.avgCost)
+                          onlyBroker &&
+                          beginEdit(onlyBroker.id, r.qty, r.avgCost, r.stockCode, onlyBroker.capitalFirm)
                         }
                         onSave={saveEdit}
                         onCancel={cancelEdit}
@@ -1059,9 +1148,33 @@ function SaudiStocksTab({
                         className="bg-background/40 border-b border-border/40 text-muted-foreground"
                       >
                         <td></td>
-                        <td className="px-3 py-1.5 font-mono text-[10px]">↳</td>
+                        <td className="px-3 py-1.5 font-mono text-[10px]">
+                          {isEditingThis ? (
+                            <input
+                              type="text"
+                              value={editCode}
+                              onChange={(e) => setEditCode(e.target.value)}
+                              onKeyDown={onEditKey}
+                              disabled={saving}
+                              className="w-16 px-1.5 py-0.5 font-mono bg-input border border-primary/50 rounded text-foreground"
+                            />
+                          ) : (
+                            "↳"
+                          )}
+                        </td>
                         <td className="px-3 py-1.5 text-[11px]" colSpan={2}>
-                          <span className="capitalize">{b.capitalFirm.toLowerCase()}</span>
+                          {isEditingThis ? (
+                            <input
+                              type="text"
+                              value={editFirm}
+                              onChange={(e) => setEditFirm(e.target.value)}
+                              onKeyDown={onEditKey}
+                              disabled={saving}
+                              className="w-28 px-1.5 py-0.5 bg-input border border-primary/50 rounded text-foreground"
+                            />
+                          ) : (
+                            <span className="capitalize">{b.capitalFirm.toLowerCase()}</span>
+                          )}
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono text-[11px]">
                           {isEditingThis ? (
@@ -1110,7 +1223,7 @@ function SaudiStocksTab({
                             editable
                             editing={isEditingThis}
                             saving={saving && isEditingThis}
-                            onEdit={() => beginEdit(b.id, b.qty, bAvg)}
+                            onEdit={() => beginEdit(b.id, b.qty, bAvg, r.stockCode, b.capitalFirm)}
                             onSave={saveEdit}
                             onCancel={cancelEdit}
                           />
@@ -1222,11 +1335,14 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
   }
 
   function saveFund() {
-    return edit.save({
+    const payload: Record<string, unknown> = {
       qty: Number(edit.values.qty),
       costPerUnit: edit.values.costPerUnit === "" ? null : Number(edit.values.costPerUnit),
       closePrice: edit.values.closePrice === "" ? null : Number(edit.values.closePrice),
-    });
+    };
+    if (edit.values.fundName != null) payload.fundName = edit.values.fundName;
+    if (edit.values.capitalFirm != null) payload.capitalFirm = edit.values.capitalFirm;
+    return edit.save(payload);
   }
 
   return (
@@ -1276,8 +1392,20 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
                     <td className="px-2 py-2 text-muted-foreground">
                       {multi && <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />}
                     </td>
-                    <td className="px-3 py-2 max-w-[360px] truncate" title={f.fundName}>{f.fundName}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{brokerList(f.brokers)}</td>
+                    <td className="px-3 py-2 max-w-[360px] truncate" title={f.fundName}>
+                      {isEditingMain ? (
+                        <EditTextInput value={edit.values.fundName ?? ""} onChange={(v) => edit.setField("fundName", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} width="w-full" />
+                      ) : (
+                        f.fundName
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {isEditingMain ? (
+                        <EditTextInput value={edit.values.capitalFirm ?? ""} onChange={(v) => edit.setField("capitalFirm", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} width="w-28" />
+                      ) : (
+                        brokerList(f.brokers)
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono">
                       {isEditingMain ? (
                         <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} />
@@ -1304,7 +1432,7 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
                         editable={!!onlyBroker}
                         editing={!!isEditingMain}
                         saving={edit.saving && !!isEditingMain}
-                        onEdit={() => onlyBroker && edit.start(onlyBroker.id, { qty: f.qty, costPerUnit: f.avgCostPerUnit, closePrice: f.closePrice })}
+                        onEdit={() => onlyBroker && edit.start(onlyBroker.id, { qty: f.qty, costPerUnit: f.avgCostPerUnit, closePrice: f.closePrice, fundName: f.fundName, capitalFirm: onlyBroker.capitalFirm })}
                         onSave={saveFund}
                         onCancel={edit.cancel}
                         hint={multi ? "Expand to edit per broker" : undefined}
@@ -1317,7 +1445,14 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
                     return (
                       <tr key={b.id} className="bg-background/40 border-b border-border/40 text-muted-foreground">
                         <td></td>
-                        <td className="px-3 py-1.5 text-[11px]" colSpan={2}>↳ <span className="capitalize">{b.capitalFirm.toLowerCase()}</span></td>
+                        <td className="px-3 py-1.5 text-[11px]" colSpan={2}>
+                          ↳{" "}
+                          {isEditingThis ? (
+                            <EditTextInput value={edit.values.capitalFirm ?? ""} onChange={(v) => edit.setField("capitalFirm", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} width="w-28" />
+                          ) : (
+                            <span className="capitalize">{b.capitalFirm.toLowerCase()}</span>
+                          )}
+                        </td>
                         <td className="px-3 py-1.5 text-right font-mono text-[11px]">
                           {isEditingThis ? (
                             <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} />
@@ -1341,7 +1476,7 @@ function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () =
                             editable
                             editing={isEditingThis}
                             saving={edit.saving && isEditingThis}
-                            onEdit={() => edit.start(b.id, { qty: b.qty, costPerUnit: bAvg, closePrice: f.closePrice })}
+                            onEdit={() => edit.start(b.id, { qty: b.qty, costPerUnit: bAvg, closePrice: f.closePrice, capitalFirm: b.capitalFirm })}
                             onSave={saveFund}
                             onCancel={edit.cancel}
                           />
@@ -1371,11 +1506,13 @@ function UsaStocksTab({ rows, onUpdated }: { rows: UsaStock[]; onUpdated: () => 
     return r[k as Exclude<UsaSortKey, "pnl">];
   });
   function saveUsa() {
-    return edit.save({
+    const payload: Record<string, unknown> = {
       qty: Number(edit.values.qty),
       costValue: edit.values.costValue === "" ? null : Number(edit.values.costValue),
       closePrice: edit.values.closePrice === "" ? null : Number(edit.values.closePrice),
-    });
+    };
+    if (edit.values.ticker != null) payload.ticker = edit.values.ticker;
+    return edit.save(payload);
   }
   return (
     <div className="bg-card border border-border rounded-xl">
@@ -1408,7 +1545,13 @@ function UsaStocksTab({ rows, onUpdated }: { rows: UsaStock[]; onUpdated: () => 
               const isEditing = edit.editingId === u.id;
               return (
                 <tr key={u.id} className="border-b border-border/40 hover:bg-accent/50">
-                  <td className="px-3 py-2 font-mono font-medium">{u.ticker}</td>
+                  <td className="px-3 py-2 font-mono font-medium">
+                    {isEditing ? (
+                      <EditTextInput value={edit.values.ticker ?? ""} onChange={(v) => edit.setField("ticker", v)} onSave={saveUsa} onCancel={edit.cancel} disabled={edit.saving} width="w-20" />
+                    ) : (
+                      u.ticker
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono">
                     {isEditing ? (
                       <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveUsa} onCancel={edit.cancel} disabled={edit.saving} />
@@ -1431,7 +1574,7 @@ function UsaStocksTab({ rows, onUpdated }: { rows: UsaStock[]; onUpdated: () => 
                       editable
                       editing={isEditing}
                       saving={edit.saving && isEditing}
-                      onEdit={() => edit.start(u.id, { qty: u.qty, costValue: u.costValue, closePrice: u.closePrice })}
+                      onEdit={() => edit.start(u.id, { qty: u.qty, costValue: u.costValue, closePrice: u.closePrice, ticker: u.ticker })}
                       onSave={saveUsa}
                       onCancel={edit.cancel}
                     />
@@ -1455,10 +1598,14 @@ function GulfStocksTab({ rows, onUpdated }: { rows: GulfStock[]; onUpdated: () =
   type GulfSortKey = "capitalFirm" | "market" | "stockCode" | "qty" | "marketPrice" | "currentValue";
   const { sorted, head } = useSort<GulfStock, GulfSortKey>(rows, "currentValue", (r, k) => r[k]);
   function saveGulf() {
-    return edit.save({
+    const payload: Record<string, unknown> = {
       qty: Number(edit.values.qty),
       marketPrice: edit.values.marketPrice === "" ? null : Number(edit.values.marketPrice),
-    });
+    };
+    if (edit.values.capitalFirm != null) payload.capitalFirm = edit.values.capitalFirm;
+    if (edit.values.market != null) payload.market = edit.values.market;
+    if (edit.values.stockCode != null) payload.stockCode = edit.values.stockCode;
+    return edit.save(payload);
   }
   return (
     <div className="bg-card border border-border rounded-xl">
@@ -1489,9 +1636,27 @@ function GulfStocksTab({ rows, onUpdated }: { rows: GulfStock[]; onUpdated: () =
               const isEditing = edit.editingId === g.id;
               return (
                 <tr key={g.id} className="border-b border-border/40 hover:bg-accent/50">
-                  <td className="px-3 py-2 text-muted-foreground capitalize">{g.capitalFirm ?? "—"}</td>
-                  <td className="px-3 py-2 capitalize">{g.market}</td>
-                  <td className="px-3 py-2 font-mono">{g.stockCode}</td>
+                  <td className="px-3 py-2 text-muted-foreground capitalize">
+                    {isEditing ? (
+                      <EditTextInput value={edit.values.capitalFirm ?? ""} onChange={(v) => edit.setField("capitalFirm", v)} onSave={saveGulf} onCancel={edit.cancel} disabled={edit.saving} width="w-28" />
+                    ) : (
+                      g.capitalFirm ?? "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2 capitalize">
+                    {isEditing ? (
+                      <EditTextInput value={edit.values.market ?? ""} onChange={(v) => edit.setField("market", v)} onSave={saveGulf} onCancel={edit.cancel} disabled={edit.saving} width="w-20" />
+                    ) : (
+                      g.market
+                    )}
+                  </td>
+                  <td className="px-3 py-2 font-mono">
+                    {isEditing ? (
+                      <EditTextInput value={edit.values.stockCode ?? ""} onChange={(v) => edit.setField("stockCode", v)} onSave={saveGulf} onCancel={edit.cancel} disabled={edit.saving} width="w-24" />
+                    ) : (
+                      g.stockCode
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono">
                     {isEditing ? (
                       <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveGulf} onCancel={edit.cancel} disabled={edit.saving} />
@@ -1508,7 +1673,7 @@ function GulfStocksTab({ rows, onUpdated }: { rows: GulfStock[]; onUpdated: () =
                       editable
                       editing={isEditing}
                       saving={edit.saving && isEditing}
-                      onEdit={() => edit.start(g.id, { qty: g.qty, marketPrice: g.marketPrice })}
+                      onEdit={() => edit.start(g.id, { qty: g.qty, marketPrice: g.marketPrice, capitalFirm: g.capitalFirm ?? "", market: g.market, stockCode: g.stockCode })}
                       onSave={saveGulf}
                       onCancel={edit.cancel}
                     />
@@ -1532,7 +1697,10 @@ function CashTab({ rows, total, onUpdated }: { rows: CashRow[]; total: number; o
   type CashSortKey = "capitalFirm" | "portfolio" | "amount";
   const { sorted, head } = useSort<CashRow, CashSortKey>(rows, "amount", (r, k) => r[k]);
   function saveCash() {
-    return edit.save({ amount: Number(edit.values.amount) });
+    const payload: Record<string, unknown> = { amount: Number(edit.values.amount) };
+    if (edit.values.capitalFirm != null) payload.capitalFirm = edit.values.capitalFirm;
+    if (edit.values.portfolio != null) payload.portfolio = edit.values.portfolio;
+    return edit.save(payload);
   }
   return (
     <div className="bg-card border border-border rounded-xl">
@@ -1560,8 +1728,20 @@ function CashTab({ rows, total, onUpdated }: { rows: CashRow[]; total: number; o
               const isEditing = edit.editingId === c.id;
               return (
                 <tr key={c.id} className="border-b border-border/40 hover:bg-accent/50">
-                  <td className="px-3 py-2 capitalize">{c.capitalFirm}</td>
-                  <td className="px-3 py-2 font-mono text-muted-foreground">{c.portfolio ?? "—"}</td>
+                  <td className="px-3 py-2 capitalize">
+                    {isEditing ? (
+                      <EditTextInput value={edit.values.capitalFirm ?? ""} onChange={(v) => edit.setField("capitalFirm", v)} onSave={saveCash} onCancel={edit.cancel} disabled={edit.saving} width="w-28" />
+                    ) : (
+                      c.capitalFirm
+                    )}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-muted-foreground">
+                    {isEditing ? (
+                      <EditTextInput value={edit.values.portfolio ?? ""} onChange={(v) => edit.setField("portfolio", v)} onSave={saveCash} onCancel={edit.cancel} disabled={edit.saving} width="w-40" />
+                    ) : (
+                      c.portfolio ?? "—"
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono font-medium">
                     {isEditing ? (
                       <EditNumberInput value={edit.values.amount ?? ""} onChange={(v) => edit.setField("amount", v)} onSave={saveCash} onCancel={edit.cancel} disabled={edit.saving} width="w-28" />
@@ -1572,7 +1752,7 @@ function CashTab({ rows, total, onUpdated }: { rows: CashRow[]; total: number; o
                       editable
                       editing={isEditing}
                       saving={edit.saving && isEditing}
-                      onEdit={() => edit.start(c.id, { amount: c.amount })}
+                      onEdit={() => edit.start(c.id, { amount: c.amount, capitalFirm: c.capitalFirm, portfolio: c.portfolio ?? "" })}
                       onSave={saveCash}
                       onCancel={edit.cancel}
                     />

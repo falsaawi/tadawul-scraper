@@ -598,23 +598,25 @@ function AllocationTreemap({ data }: { data: ApiResponse }) {
       }
     >
       {nodes.length === 0 ? (
-        <div className="h-[300px] flex items-center justify-center text-xs text-muted-foreground">
+        <div className="h-full min-h-[300px] flex items-center justify-center text-xs text-muted-foreground">
           Nothing to show
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <Treemap
-            data={treeData}
-            dataKey="size"
-            stroke="#0f172a"
-            isAnimationActive={false}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            content={<TreemapTile view={view} /> as any}
-            onClick={(p) => onClickNode(p as TreemapPayload)}
-          >
-            <Tooltip content={<TreemapTooltip total={total} />} />
-          </Treemap>
-        </ResponsiveContainer>
+        <div className="w-full h-full min-h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <Treemap
+              data={treeData}
+              dataKey="size"
+              stroke="#0f172a"
+              isAnimationActive={false}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              content={<TreemapTile view={view} /> as any}
+              onClick={(p) => onClickNode(p as TreemapPayload)}
+            >
+              <Tooltip content={<TreemapTooltip total={total} />} />
+            </Treemap>
+          </ResponsiveContainer>
+        </div>
       )}
     </Panel>
   );
@@ -762,14 +764,24 @@ function Card({
   );
 }
 
-function Panel({ title, children, right }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
+function Panel({
+  title,
+  children,
+  right,
+  bodyClassName,
+}: {
+  title: React.ReactNode;
+  children: React.ReactNode;
+  right?: React.ReactNode;
+  bodyClassName?: string;
+}) {
   return (
-    <div className="bg-card border border-border rounded-xl">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+    <div className="bg-card border border-border rounded-xl h-full flex flex-col">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
         <h3 className="text-sm font-semibold">{title}</h3>
         {right}
       </div>
-      <div className="p-3">{children}</div>
+      <div className={`p-3 flex-1 min-h-0 ${bodyClassName ?? ""}`}>{children}</div>
     </div>
   );
 }

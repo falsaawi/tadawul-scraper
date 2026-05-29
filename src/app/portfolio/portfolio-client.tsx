@@ -144,7 +144,21 @@ interface ApiResponse {
     details: Record<Exclude<TreemapView, "root">, TreemapNode[]>;
   };
   topHoldings: Array<{ name: string; category: string; value: number }>;
-  brokerAllocation: Array<{ broker: string; value: number }>;
+  brokerAllocation: Array<{
+    broker: string;
+    value: number;
+    cost: number;
+    investedValue: number;
+    pnl: number;
+    pnlPct: number;
+  }>;
+  gainByType: Array<{
+    type: string;
+    value: number;
+    cost: number;
+    pnl: number;
+    pnlPct: number;
+  }>;
   topGainers: SaudiStock[];
   topLosers: SaudiStock[];
   saudiStocks: SaudiStock[];
@@ -391,24 +405,135 @@ function ChartsRow({ data }: { data: ApiResponse }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
       <AllocationTreemap data={data} />
-      <Panel title="Top 10 holdings (by value)">
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data.topHoldings} layout="vertical" margin={{ left: 10, right: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-            <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}K`} />
-            <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: "#cbd5e1" }} width={140} />
-            <Tooltip
-              formatter={(v) => SAR.format(Number(v))}
-              contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 12 }}
-            />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-              {data.topHoldings.map((h, i) => (
-                <Cell key={i} fill={CATEGORY_COLOR[h.category] ?? COLORS[i % COLORS.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Panel>
+      <div className="grid grid-cols-1 gap-3">
+        <GainByTypePanel rows={data.gainByType} />
+        <GainByBrokerPanel rows={data.brokerAllocation} />
+      </div>
+    </div>
+  );
+}
+
+function GainByTypePanel({
+  rows,
+}: {
+  rows: ApiResponse["gainByType"];
+}) {
+  const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const totalPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
+  return (
+    <Panel
+      title="Gain by asset type"
+      right={
+        <span className={`text-xs font-mono font-semibold ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+          {(totalPnl >= 0 ? "+" : "") + SAR.format(totalPnl)} · {PCT(totalPct)}
+        </span>
+      }
+    >
+      <div className="space-y-2">
+        {rows.map((r) => (
+          <GainBar
+            key={r.type}
+            label={r.type}
+            color={CATEGORY_COLOR[r.type] ?? "#22c55e"}
+            value={r.value}
+            cost={r.cost}
+            pnl={r.pnl}
+            pnlPct={r.pnlPct}
+            maxAbs={maxAbs}
+          />
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function GainByBrokerPanel({
+  rows,
+}: {
+  rows: ApiResponse["brokerAllocation"];
+}) {
+  const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const totalPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
+  return (
+    <Panel
+      title="Gain by broker"
+      right={
+        <span className={`text-xs font-mono font-semibold ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+          {(totalPnl >= 0 ? "+" : "") + SAR.format(totalPnl)} · {PCT(totalPct)}
+        </span>
+      }
+    >
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <GainBar
+            key={r.broker}
+            label={r.broker}
+            color={COLORS[i % COLORS.length]}
+            value={r.investedValue}
+            cost={r.cost}
+            pnl={r.pnl}
+            pnlPct={r.pnlPct}
+            maxAbs={maxAbs}
+            capitalize
+          />
+        ))}
+        {rows.length === 0 && (
+          <div className="text-xs text-muted-foreground py-4 text-center">No broker data</div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function GainBar({
+  label,
+  color,
+  value,
+  cost,
+  pnl,
+  pnlPct,
+  maxAbs,
+  capitalize,
+}: {
+  label: string;
+  color: string;
+  value: number;
+  cost: number;
+  pnl: number;
+  pnlPct: number;
+  maxAbs: number;
+  capitalize?: boolean;
+}) {
+  const pos = pnl >= 0;
+  const width = `${Math.min(100, (Math.abs(pnl) / maxAbs) * 100)}%`;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs mb-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+          <span className={`font-medium truncate ${capitalize ? "capitalize" : ""}`}>{label}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 font-mono">
+          <span className={`font-semibold ${pos ? "text-green-400" : "text-red-400"}`}>
+            {(pos ? "+" : "") + SAR.format(pnl)}
+          </span>
+          <span className={`text-[10px] ${pos ? "text-green-400" : "text-red-400"}`}>{PCT(pnlPct)}</span>
+        </div>
+      </div>
+      <div className="relative h-1.5 bg-background rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${pos ? "bg-green-400" : "bg-red-400"}`}
+          style={{ width }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
+        <span>Cost {SAR.format(cost)}</span>
+        <span>Value {SAR.format(value)}</span>
+      </div>
     </div>
   );
 }

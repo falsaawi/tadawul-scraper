@@ -412,28 +412,103 @@ export async function GET() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // ---- Per-broker allocation ----
-  const brokerMap = new Map<string, number>();
-  const add = (k: string, v: number) =>
-    brokerMap.set(k, (brokerMap.get(k) ?? 0) + v);
-  for (const c of cash) add(c.capitalFirm.toLowerCase(), c.amount);
+  // ---- Per-broker allocation + P/L ----
+  type BrokerAgg = { value: number; cost: number; investedValue: number };
+  const brokerMap = new Map<string, BrokerAgg>();
+  const addBroker = (
+    key: string,
+    value: number,
+    cost: number,
+    invested: boolean
+  ) => {
+    const cur = brokerMap.get(key) ?? { value: 0, cost: 0, investedValue: 0 };
+    cur.value += value;
+    if (invested) {
+      cur.cost += cost;
+      cur.investedValue += value;
+    }
+    brokerMap.set(key, cur);
+  };
+  for (const c of cash) {
+    addBroker(c.capitalFirm.toLowerCase(), c.amount, 0, false);
+  }
   for (const r of saudiRows) {
     const totalValue = r.liveValue ?? r.brokerCurrentValue ?? 0;
-    // distribute across brokers proportionally to qty
+    const totalCost = r.totalCost ?? 0;
     for (const b of r.brokers) {
-      const share = r.qty > 0 ? (b.qty / r.qty) * totalValue : 0;
-      add(b.capitalFirm.toLowerCase(), share);
+      const share = r.qty > 0 ? b.qty / r.qty : 0;
+      addBroker(
+        b.capitalFirm.toLowerCase(),
+        share * totalValue,
+        share * totalCost,
+        true
+      );
     }
   }
   for (const f of fundRows) {
-    for (const b of f.brokers) add(b.capitalFirm.toLowerCase(), b.marketValue ?? 0);
+    for (const b of f.brokers) {
+      addBroker(
+        b.capitalFirm.toLowerCase(),
+        b.marketValue ?? 0,
+        b.totalCost ?? 0,
+        true
+      );
+    }
   }
   for (const g of gulfStocks) {
-    add((g.capitalFirm ?? "unknown").toLowerCase(), g.currentValue ?? 0);
+    addBroker(
+      (g.capitalFirm ?? "unknown").toLowerCase(),
+      g.currentValue ?? 0,
+      0,
+      true
+    );
   }
   const brokerAllocation = Array.from(brokerMap.entries())
-    .map(([broker, value]) => ({ broker, value }))
+    .map(([broker, v]) => {
+      const pnl = v.investedValue - v.cost;
+      const pnlPct = v.cost > 0 ? (pnl / v.cost) * 100 : 0;
+      return {
+        broker,
+        value: v.value,
+        cost: v.cost,
+        investedValue: v.investedValue,
+        pnl,
+        pnlPct,
+      };
+    })
     .sort((a, b) => b.value - a.value);
+
+  // ---- Gain by asset type ----
+  const gainByType = [
+    {
+      type: "Saudi Stocks",
+      value: saudiLiveValue,
+      cost: saudiCost,
+      pnl: saudiPnl,
+      pnlPct: saudiCost > 0 ? (saudiPnl / saudiCost) * 100 : 0,
+    },
+    {
+      type: "Saudi Funds",
+      value: fundsValue,
+      cost: fundsCost,
+      pnl: fundsValue - fundsCost,
+      pnlPct: fundsCost > 0 ? ((fundsValue - fundsCost) / fundsCost) * 100 : 0,
+    },
+    {
+      type: "USA Stocks",
+      value: usaValue,
+      cost: usaCost,
+      pnl: usaValue - usaCost,
+      pnlPct: usaCost > 0 ? ((usaValue - usaCost) / usaCost) * 100 : 0,
+    },
+    {
+      type: "Gulf Stocks",
+      value: gulfValue,
+      cost: 0,
+      pnl: 0,
+      pnlPct: 0,
+    },
+  ];
 
   // ---- Today's movers ----
   const movers = saudiRows.filter((r) => r.livePctChange != null);
@@ -471,6 +546,7 @@ export async function GET() {
     treemap,
     topHoldings,
     brokerAllocation,
+    gainByType,
     topGainers,
     topLosers,
     saudiStocks: saudiRows,

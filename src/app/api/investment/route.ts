@@ -3,13 +3,19 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-interface SaudiStockRow {
+interface BrokerSlice {
   capitalFirm: string;
+  qty: number;
+  totalCost: number | null;
+  brokerCurrentValue: number | null;
+}
+
+interface SaudiStockRow {
   stockCode: string;
   companyName: string | null;
   sector: string | null;
   qty: number;
-  stockCost: number | null;
+  avgCost: number | null;
   totalCost: number | null;
   brokerMarketPrice: number | null;
   brokerCurrentValue: number | null;
@@ -18,6 +24,24 @@ interface SaudiStockRow {
   livePctChange: number | null;
   pnl: number | null;
   pnlPct: number | null;
+  brokers: BrokerSlice[];
+}
+
+interface SaudiFundRow {
+  fundName: string;
+  qty: number;
+  avgCostPerUnit: number | null;
+  totalCost: number | null;
+  closePrice: number | null;
+  marketValue: number | null;
+  pnl: number | null;
+  pnlPct: number | null;
+  brokers: Array<{
+    capitalFirm: string;
+    qty: number;
+    totalCost: number | null;
+    marketValue: number | null;
+  }>;
 }
 
 export async function GET() {
@@ -34,11 +58,9 @@ export async function GET() {
       prisma.investmentCash.findMany({ where: { uploadId: upload.id } }),
       prisma.investmentSaudiStock.findMany({
         where: { uploadId: upload.id },
-        orderBy: { brokerCurrentValue: "desc" },
       }),
       prisma.investmentSaudiFund.findMany({
         where: { uploadId: upload.id },
-        orderBy: { marketValue: "desc" },
       }),
       prisma.investmentUsaStock.findMany({
         where: { uploadId: upload.id },
@@ -55,11 +77,7 @@ export async function GET() {
     ]);
 
   // Build live price + company name lookup from latest scrape
-  type Live = {
-    price: number | null;
-    pct: number | null;
-    companyName: string;
-  };
+  type Live = { price: number | null; pct: number | null; companyName: string };
   const priceMap = new Map<string, Live>();
   if (lastSession) {
     const records = await prisma.stockRecord.findMany({
@@ -86,53 +104,168 @@ export async function GET() {
     }
   }
 
-  // Pull sector hints from CompanyProfile if available
   const profiles = await prisma.companyProfile.findMany({
     select: { symbol: true, sector: true },
   });
   const sectorMap = new Map<string, string | null>();
   for (const p of profiles) sectorMap.set(p.symbol, p.sector);
 
-  const saudiRows: SaudiStockRow[] = saudiStocks.map((h) => {
+  // ---- Aggregate Saudi stocks by stockCode (sum across brokers) ----
+  type SaudiAgg = {
+    stockCode: string;
+    qty: number;
+    totalCost: number;
+    hasCost: boolean;
+    brokerCurrentValue: number;
+    hasBrokerValue: boolean;
+    brokerMarketPrice: number | null;
+    brokers: BrokerSlice[];
+  };
+  const saudiAgg = new Map<string, SaudiAgg>();
+  for (const h of saudiStocks) {
+    const cur =
+      saudiAgg.get(h.stockCode) ??
+      ({
+        stockCode: h.stockCode,
+        qty: 0,
+        totalCost: 0,
+        hasCost: false,
+        brokerCurrentValue: 0,
+        hasBrokerValue: false,
+        brokerMarketPrice: null,
+        brokers: [],
+      } as SaudiAgg);
+    cur.qty += h.qty;
+    if (h.totalCost != null) {
+      cur.totalCost += h.totalCost;
+      cur.hasCost = true;
+    }
+    if (h.brokerCurrentValue != null) {
+      cur.brokerCurrentValue += h.brokerCurrentValue;
+      cur.hasBrokerValue = true;
+    }
+    if (cur.brokerMarketPrice == null && h.brokerMarketPrice != null) {
+      cur.brokerMarketPrice = h.brokerMarketPrice;
+    }
+    cur.brokers.push({
+      capitalFirm: h.capitalFirm,
+      qty: h.qty,
+      totalCost: h.totalCost,
+      brokerCurrentValue: h.brokerCurrentValue,
+    });
+    saudiAgg.set(h.stockCode, cur);
+  }
+
+  const saudiRows: SaudiStockRow[] = Array.from(saudiAgg.values()).map((a) => {
     const live =
-      priceMap.get(h.stockCode) ??
-      priceMap.get(h.stockCode.padStart(4, "0")) ??
-      priceMap.get(h.stockCode.replace(/^0+/, "")) ??
+      priceMap.get(a.stockCode) ??
+      priceMap.get(a.stockCode.padStart(4, "0")) ??
+      priceMap.get(a.stockCode.replace(/^0+/, "")) ??
       null;
     const livePrice = live?.price ?? null;
-    const liveValue = livePrice != null ? livePrice * h.qty : null;
-    const cost = h.totalCost ?? null;
-    const pnl = liveValue != null && cost != null ? liveValue - cost : null;
+    const liveValue = livePrice != null ? livePrice * a.qty : null;
+    const totalCost = a.hasCost ? a.totalCost : null;
+    const avgCost = totalCost != null && a.qty > 0 ? totalCost / a.qty : null;
+    const pnl =
+      liveValue != null && totalCost != null ? liveValue - totalCost : null;
     const pnlPct =
-      pnl != null && cost != null && cost > 0 ? (pnl / cost) * 100 : null;
+      pnl != null && totalCost != null && totalCost > 0
+        ? (pnl / totalCost) * 100
+        : null;
     return {
-      capitalFirm: h.capitalFirm,
-      stockCode: h.stockCode,
+      stockCode: a.stockCode,
       companyName: live?.companyName ?? null,
-      sector: sectorMap.get(h.stockCode) ?? null,
-      qty: h.qty,
-      stockCost: h.stockCost,
-      totalCost: h.totalCost,
-      brokerMarketPrice: h.brokerMarketPrice,
-      brokerCurrentValue: h.brokerCurrentValue,
+      sector: sectorMap.get(a.stockCode) ?? null,
+      qty: a.qty,
+      avgCost,
+      totalCost,
+      brokerMarketPrice: a.brokerMarketPrice,
+      brokerCurrentValue: a.hasBrokerValue ? a.brokerCurrentValue : null,
       livePrice,
       liveValue,
       livePctChange: live?.pct ?? null,
       pnl,
       pnlPct,
+      brokers: a.brokers,
     };
   });
 
-  // Sort Saudi stocks by live value desc, fall back to broker value
   saudiRows.sort(
     (a, b) =>
       (b.liveValue ?? b.brokerCurrentValue ?? 0) -
       (a.liveValue ?? a.brokerCurrentValue ?? 0)
   );
 
-  // AGGREGATES
-  const cashTotal = cash.reduce((s, c) => s + c.amount, 0);
+  // ---- Aggregate Saudi funds by fundName ----
+  type FundAgg = {
+    fundName: string;
+    qty: number;
+    totalCost: number;
+    hasCost: boolean;
+    marketValue: number;
+    hasMarket: boolean;
+    closePrice: number | null;
+    brokers: SaudiFundRow["brokers"];
+  };
+  const fundAgg = new Map<string, FundAgg>();
+  for (const f of saudiFunds) {
+    const cur =
+      fundAgg.get(f.fundName) ??
+      ({
+        fundName: f.fundName,
+        qty: 0,
+        totalCost: 0,
+        hasCost: false,
+        marketValue: 0,
+        hasMarket: false,
+        closePrice: null,
+        brokers: [],
+      } as FundAgg);
+    cur.qty += f.qty;
+    if (f.totalCost != null) {
+      cur.totalCost += f.totalCost;
+      cur.hasCost = true;
+    }
+    if (f.marketValue != null) {
+      cur.marketValue += f.marketValue;
+      cur.hasMarket = true;
+    }
+    if (cur.closePrice == null && f.closePrice != null) cur.closePrice = f.closePrice;
+    cur.brokers.push({
+      capitalFirm: f.capitalFirm,
+      qty: f.qty,
+      totalCost: f.totalCost,
+      marketValue: f.marketValue,
+    });
+    fundAgg.set(f.fundName, cur);
+  }
+  const fundRows: SaudiFundRow[] = Array.from(fundAgg.values()).map((a) => {
+    const totalCost = a.hasCost ? a.totalCost : null;
+    const marketValue = a.hasMarket ? a.marketValue : null;
+    const avgCostPerUnit =
+      totalCost != null && a.qty > 0 ? totalCost / a.qty : null;
+    const pnl =
+      marketValue != null && totalCost != null ? marketValue - totalCost : null;
+    const pnlPct =
+      pnl != null && totalCost != null && totalCost > 0
+        ? (pnl / totalCost) * 100
+        : null;
+    return {
+      fundName: a.fundName,
+      qty: a.qty,
+      avgCostPerUnit,
+      totalCost,
+      closePrice: a.closePrice,
+      marketValue,
+      pnl,
+      pnlPct,
+      brokers: a.brokers,
+    };
+  });
+  fundRows.sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0));
 
+  // ---- Totals ----
+  const cashTotal = cash.reduce((s, c) => s + c.amount, 0);
   const saudiLiveValue = saudiRows.reduce(
     (s, r) => s + (r.liveValue ?? r.brokerCurrentValue ?? 0),
     0
@@ -141,34 +274,98 @@ export async function GET() {
   const saudiPnl = saudiLiveValue - saudiCost;
   const saudiUnmatched = saudiRows.filter((r) => r.livePrice == null).length;
 
-  const fundsValue = saudiFunds.reduce(
-    (s, f) => s + (f.marketValue ?? 0),
-    0
-  );
-  const fundsCost = saudiFunds.reduce((s, f) => s + (f.totalCost ?? 0), 0);
+  const fundsValue = fundRows.reduce((s, f) => s + (f.marketValue ?? 0), 0);
+  const fundsCost = fundRows.reduce((s, f) => s + (f.totalCost ?? 0), 0);
 
   const usaValue = usaStocks.reduce((s, u) => s + (u.marketValue ?? 0), 0);
   const usaCost = usaStocks.reduce((s, u) => s + (u.costValue ?? 0), 0);
 
-  const gulfValue = gulfStocks.reduce(
-    (s, g) => s + (g.currentValue ?? 0),
-    0
-  );
+  const gulfValue = gulfStocks.reduce((s, g) => s + (g.currentValue ?? 0), 0);
 
-  const grandTotal =
-    cashTotal + saudiLiveValue + fundsValue + usaValue + gulfValue;
+  const grandTotal = cashTotal + saudiLiveValue + fundsValue + usaValue + gulfValue;
   const grandCost = saudiCost + fundsCost + usaCost;
 
-  // Asset allocation pie
-  const allocation = [
-    { category: "Saudi Stocks", value: saudiLiveValue, count: saudiRows.length },
-    { category: "Saudi Funds", value: fundsValue, count: saudiFunds.length },
-    { category: "USA Stocks", value: usaValue, count: usaStocks.length },
-    { category: "Gulf Stocks", value: gulfValue, count: gulfStocks.length },
-    { category: "Cash", value: cashTotal, count: cash.length },
-  ].filter((a) => a.value > 0);
+  // ---- Treemap: root + per-category details (sized by % of details) ----
+  const treemap = {
+    root: [
+      {
+        id: "saudi-stocks",
+        name: "Saudi Stocks",
+        value: saudiLiveValue,
+        count: saudiRows.length,
+      },
+      {
+        id: "saudi-funds",
+        name: "Saudi Funds",
+        value: fundsValue,
+        count: fundRows.length,
+      },
+      { id: "usa", name: "USA Stocks", value: usaValue, count: usaStocks.length },
+      {
+        id: "gulf",
+        name: "Gulf Stocks",
+        value: gulfValue,
+        count: gulfStocks.length,
+      },
+      { id: "cash", name: "Cash", value: cashTotal, count: cash.length },
+    ].filter((c) => c.value > 0),
 
-  // Top 10 holdings overall (Saudi stocks valued live; funds + usa + gulf at snapshot)
+    details: {
+      "saudi-stocks": saudiRows.map((r) => ({
+        id: r.stockCode,
+        name: r.companyName ? `${r.stockCode} · ${r.companyName}` : r.stockCode,
+        value: r.liveValue ?? r.brokerCurrentValue ?? 0,
+        meta: {
+          sector: r.sector,
+          qty: r.qty,
+          avgCost: r.avgCost,
+          livePrice: r.livePrice,
+          pnl: r.pnl,
+          pnlPct: r.pnlPct,
+          brokerCount: r.brokers.length,
+        },
+      })),
+      "saudi-funds": fundRows.map((f) => ({
+        id: f.fundName,
+        name: f.fundName,
+        value: f.marketValue ?? 0,
+        meta: {
+          qty: f.qty,
+          avgCostPerUnit: f.avgCostPerUnit,
+          closePrice: f.closePrice,
+          pnl: f.pnl,
+          pnlPct: f.pnlPct,
+          brokerCount: f.brokers.length,
+        },
+      })),
+      usa: usaStocks.map((u) => ({
+        id: u.ticker,
+        name: u.ticker,
+        value: u.marketValue ?? 0,
+        meta: {
+          qty: u.qty,
+          closePrice: u.closePrice,
+          pnl: u.profitLoss,
+        },
+      })),
+      gulf: gulfStocks.map((g) => ({
+        id: `${g.market}-${g.stockCode}`,
+        name: `${g.stockCode} (${g.market})`,
+        value: g.currentValue ?? 0,
+        meta: { qty: g.qty, marketPrice: g.marketPrice, broker: g.capitalFirm },
+      })),
+      cash: cash.map((c) => ({
+        id: `${c.capitalFirm}-${c.portfolio ?? ""}`,
+        name: c.portfolio
+          ? `${c.capitalFirm} · ${c.portfolio}`
+          : c.capitalFirm,
+        value: c.amount,
+        meta: { broker: c.capitalFirm, portfolio: c.portfolio },
+      })),
+    },
+  };
+
+  // ---- Top 10 holdings overall ----
   type Holding = { name: string; category: string; value: number };
   const allHoldings: Holding[] = [
     ...saudiRows.map((r) => ({
@@ -176,8 +373,8 @@ export async function GET() {
       category: "Saudi Stocks",
       value: r.liveValue ?? r.brokerCurrentValue ?? 0,
     })),
-    ...saudiFunds.map((f) => ({
-      name: f.fundName,
+    ...fundRows.map((f) => ({
+      name: f.fundName.slice(0, 30),
       category: "Saudi Funds",
       value: f.marketValue ?? 0,
     })),
@@ -196,33 +393,30 @@ export async function GET() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // Per-broker allocation
+  // ---- Per-broker allocation ----
   const brokerMap = new Map<string, number>();
-  for (const c of cash)
-    brokerMap.set(
-      c.capitalFirm.toLowerCase(),
-      (brokerMap.get(c.capitalFirm.toLowerCase()) ?? 0) + c.amount
-    );
+  const add = (k: string, v: number) =>
+    brokerMap.set(k, (brokerMap.get(k) ?? 0) + v);
+  for (const c of cash) add(c.capitalFirm.toLowerCase(), c.amount);
   for (const r of saudiRows) {
-    const k = r.capitalFirm.toLowerCase();
-    brokerMap.set(
-      k,
-      (brokerMap.get(k) ?? 0) + (r.liveValue ?? r.brokerCurrentValue ?? 0)
-    );
+    const totalValue = r.liveValue ?? r.brokerCurrentValue ?? 0;
+    // distribute across brokers proportionally to qty
+    for (const b of r.brokers) {
+      const share = r.qty > 0 ? (b.qty / r.qty) * totalValue : 0;
+      add(b.capitalFirm.toLowerCase(), share);
+    }
   }
-  for (const f of saudiFunds) {
-    const k = f.capitalFirm.toLowerCase();
-    brokerMap.set(k, (brokerMap.get(k) ?? 0) + (f.marketValue ?? 0));
+  for (const f of fundRows) {
+    for (const b of f.brokers) add(b.capitalFirm.toLowerCase(), b.marketValue ?? 0);
   }
   for (const g of gulfStocks) {
-    const k = (g.capitalFirm ?? "unknown").toLowerCase();
-    brokerMap.set(k, (brokerMap.get(k) ?? 0) + (g.currentValue ?? 0));
+    add((g.capitalFirm ?? "unknown").toLowerCase(), g.currentValue ?? 0);
   }
   const brokerAllocation = Array.from(brokerMap.entries())
     .map(([broker, value]) => ({ broker, value }))
     .sort((a, b) => b.value - a.value);
 
-  // Saudi top gainers/losers among holdings (by today's % change)
+  // ---- Today's movers ----
   const movers = saudiRows.filter((r) => r.livePctChange != null);
   const topGainers = [...movers]
     .sort((a, b) => (b.livePctChange ?? 0) - (a.livePctChange ?? 0))
@@ -241,7 +435,6 @@ export async function GET() {
     totals: {
       grandTotal,
       grandCost,
-      grandPnl: grandTotal - grandCost - cashTotal, // cost only applies to invested portion
       cash: cashTotal,
       saudiStocksLive: saudiLiveValue,
       saudiStocksCost: saudiCost,
@@ -256,13 +449,13 @@ export async function GET() {
       usaPnl: usaValue - usaCost,
       gulfValue,
     },
-    allocation,
+    treemap,
     topHoldings,
     brokerAllocation,
     topGainers,
     topLosers,
     saudiStocks: saudiRows,
-    saudiFunds,
+    saudiFunds: fundRows,
     usaStocks,
     gulfStocks,
     cash,

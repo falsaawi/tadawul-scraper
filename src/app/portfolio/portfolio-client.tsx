@@ -6,18 +6,15 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
-  Banknote,
-  Coins,
   Search,
   ArrowUpDown,
   Globe,
   Briefcase,
   RefreshCw,
+  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import {
-  PieChart,
-  Pie,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   BarChart,
@@ -25,19 +22,26 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Legend,
+  Cell,
+  Treemap,
 } from "recharts";
 import { UploadForm } from "./upload-form";
 
 type Tab = "saudi-stocks" | "saudi-funds" | "usa" | "gulf" | "cash";
 
-interface SaudiStock {
+interface BrokerSlice {
   capitalFirm: string;
+  qty: number;
+  totalCost: number | null;
+  brokerCurrentValue: number | null;
+}
+
+interface SaudiStock {
   stockCode: string;
   companyName: string | null;
   sector: string | null;
   qty: number;
-  stockCost: number | null;
+  avgCost: number | null;
   totalCost: number | null;
   brokerMarketPrice: number | null;
   brokerCurrentValue: number | null;
@@ -46,16 +50,24 @@ interface SaudiStock {
   livePctChange: number | null;
   pnl: number | null;
   pnlPct: number | null;
+  brokers: BrokerSlice[];
 }
 
 interface SaudiFund {
-  capitalFirm: string;
   fundName: string;
   qty: number;
-  costPerUnit: number | null;
+  avgCostPerUnit: number | null;
   totalCost: number | null;
   closePrice: number | null;
   marketValue: number | null;
+  pnl: number | null;
+  pnlPct: number | null;
+  brokers: Array<{
+    capitalFirm: string;
+    qty: number;
+    totalCost: number | null;
+    marketValue: number | null;
+  }>;
 }
 
 interface UsaStock {
@@ -82,13 +94,22 @@ interface CashRow {
   amount: number;
 }
 
+type TreemapView = "root" | "saudi-stocks" | "saudi-funds" | "usa" | "gulf" | "cash";
+
+interface TreemapNode {
+  id: string;
+  name: string;
+  value: number;
+  count?: number;
+  meta?: Record<string, unknown>;
+}
+
 interface ApiResponse {
   upload: { id: string; fileName: string; uploadedAt: string } | null;
   liveSessionAt: string | null;
   totals: {
     grandTotal: number;
     grandCost: number;
-    grandPnl: number;
     cash: number;
     saudiStocksLive: number;
     saudiStocksCost: number;
@@ -103,7 +124,10 @@ interface ApiResponse {
     usaPnl: number;
     gulfValue: number;
   };
-  allocation: Array<{ category: string; value: number; count: number }>;
+  treemap: {
+    root: TreemapNode[];
+    details: Record<Exclude<TreemapView, "root">, TreemapNode[]>;
+  };
   topHoldings: Array<{ name: string; category: string; value: number }>;
   brokerAllocation: Array<{ broker: string; value: number }>;
   topGainers: SaudiStock[];
@@ -142,6 +166,14 @@ const CATEGORY_COLOR: Record<string, string> = {
   "USA Stocks": "#a855f7",
   "Gulf Stocks": "#f59e0b",
   Cash: "#94a3b8",
+};
+
+const VIEW_LABEL: Record<Exclude<TreemapView, "root">, string> = {
+  "saudi-stocks": "Saudi Stocks",
+  "saudi-funds": "Saudi Funds",
+  usa: "USA Stocks",
+  gulf: "Gulf Stocks",
+  cash: "Cash",
 };
 
 function fmtDateTime(d: string | null | undefined): string {
@@ -285,10 +317,10 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
 
 function SummaryCards({ data }: { data: ApiResponse }) {
   const t = data.totals;
-  const pnlPositive = (t.saudiStocksPnl + t.saudiFundsPnl + t.usaPnl) >= 0;
-  const totalPnl = t.saudiStocksPnl + t.saudiFundsPnl + t.usaPnl;
   const totalCost = t.saudiStocksCost + t.saudiFundsCost + t.usaCost;
+  const totalPnl = t.saudiStocksPnl + t.saudiFundsPnl + t.usaPnl;
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+  const pnlPositive = totalPnl >= 0;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -335,32 +367,9 @@ function SummaryCards({ data }: { data: ApiResponse }) {
 function ChartsRow({ data }: { data: ApiResponse }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <Panel title="Asset allocation">
-        <ResponsiveContainer width="100%" height={260}>
-          <PieChart>
-            <Pie
-              data={data.allocation}
-              dataKey="value"
-              nameKey="category"
-              cx="50%"
-              cy="50%"
-              outerRadius={90}
-              innerRadius={40}
-            >
-              {data.allocation.map((a, i) => (
-                <Cell key={i} fill={CATEGORY_COLOR[a.category] ?? COLORS[i % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(v) => SAR.format(Number(v))}
-              contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 12 }}
-            />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-          </PieChart>
-        </ResponsiveContainer>
-      </Panel>
+      <AllocationTreemap data={data} />
       <Panel title="Top 10 holdings (by value)">
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.topHoldings} layout="vertical" margin={{ left: 10, right: 30 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}K`} />
@@ -381,17 +390,203 @@ function ChartsRow({ data }: { data: ApiResponse }) {
   );
 }
 
-function MoversRow({ data }: { data: ApiResponse }) {
-  if (data.topGainers.length === 0 && data.topLosers.length === 0) return null;
+function AllocationTreemap({ data }: { data: ApiResponse }) {
+  const [view, setView] = useState<TreemapView>("root");
+
+  const { nodes, total, breadcrumb } = useMemo(() => {
+    const list =
+      view === "root"
+        ? data.treemap.root
+        : data.treemap.details[view] ?? [];
+    const filtered = list.filter((n) => n.value > 0);
+    const sum = filtered.reduce((s, n) => s + n.value, 0);
+    return {
+      nodes: filtered,
+      total: sum,
+      breadcrumb:
+        view === "root" ? "All assets" : `All assets · ${VIEW_LABEL[view]}`,
+    };
+  }, [data.treemap, view]);
+
+  const treeData = nodes.map((n) => ({
+    name: n.name,
+    size: n.value,
+    id: n.id,
+    pct: total > 0 ? (n.value / total) * 100 : 0,
+    rawCategory: view === "root" ? n.name : VIEW_LABEL[view as Exclude<TreemapView, "root">],
+  }));
+
+  function onClickNode(payload: TreemapPayload | undefined) {
+    if (!payload || view !== "root") return;
+    const id = payload.id as TreemapView | undefined;
+    if (!id) return;
+    if (data.treemap.details[id as Exclude<TreemapView, "root">]?.length) {
+      setView(id);
+    }
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <MoversPanel title="Saudi holdings — today's top gainers" rows={data.topGainers} positive />
-      <MoversPanel title="Saudi holdings — today's top losers" rows={data.topLosers} positive={false} />
+    <Panel
+      title={
+        <div className="flex items-center gap-2">
+          {view !== "root" && (
+            <button
+              onClick={() => setView("root")}
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent"
+              title="Back to all assets"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <span>Asset allocation</span>
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <ChevronRight className="h-3 w-3" />
+            {breadcrumb}
+          </span>
+        </div>
+      }
+      right={
+        view === "root" ? (
+          <span className="text-[10px] text-muted-foreground">click a tile to drill in</span>
+        ) : null
+      }
+    >
+      {nodes.length === 0 ? (
+        <div className="h-[300px] flex items-center justify-center text-xs text-muted-foreground">
+          Nothing to show
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <Treemap
+            data={treeData}
+            dataKey="size"
+            stroke="#0f172a"
+            isAnimationActive={false}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            content={<TreemapTile view={view} /> as any}
+            onClick={(p) => onClickNode(p as TreemapPayload)}
+          >
+            <Tooltip
+              content={<TreemapTooltip total={total} />}
+            />
+          </Treemap>
+        </ResponsiveContainer>
+      )}
+    </Panel>
+  );
+}
+
+interface TreemapPayload {
+  id?: string;
+  name?: string;
+  size?: number;
+  pct?: number;
+  rawCategory?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  depth?: number;
+  index?: number;
+}
+
+function TreemapTile(props: TreemapPayload & { view?: TreemapView }) {
+  const { x = 0, y = 0, width = 0, height = 0, name, size, pct, view, index = 0 } = props;
+  if (width <= 0 || height <= 0) return null;
+  // Color by category for root, by index for detail
+  const isRoot = view === "root";
+  const fill = isRoot
+    ? CATEGORY_COLOR[name ?? ""] ?? COLORS[index % COLORS.length]
+    : COLORS[index % COLORS.length];
+
+  const showLabel = width > 70 && height > 30;
+  const showPct = width > 70 && height > 50;
+  const showValue = width > 110 && height > 70;
+
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        style={{
+          fill,
+          fillOpacity: 0.85,
+          stroke: "#0f172a",
+          strokeWidth: 2,
+          cursor: isRoot ? "pointer" : "default",
+        }}
+      />
+      {showLabel && (
+        <text
+          x={x + 8}
+          y={y + 18}
+          fontSize={11}
+          fontWeight={600}
+          fill="#fff"
+          style={{ pointerEvents: "none" }}
+        >
+          {truncate(name ?? "", Math.floor(width / 7))}
+        </text>
+      )}
+      {showPct && (
+        <text
+          x={x + 8}
+          y={y + 34}
+          fontSize={10}
+          fill="rgba(255,255,255,0.85)"
+          style={{ pointerEvents: "none" }}
+        >
+          {pct != null ? `${pct.toFixed(1)}%` : ""}
+        </text>
+      )}
+      {showValue && size != null && (
+        <text
+          x={x + 8}
+          y={y + 50}
+          fontSize={10}
+          fill="rgba(255,255,255,0.7)"
+          style={{ pointerEvents: "none" }}
+        >
+          {SAR.format(size)}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function TreemapTooltip({ total, ...rest }: { total: number; active?: boolean; payload?: Array<{ payload: TreemapPayload }> }) {
+  const payload = rest.payload?.[0]?.payload;
+  if (!payload) return null;
+  const pct = total > 0 ? (Number(payload.size ?? 0) / total) * 100 : 0;
+  return (
+    <div className="bg-[#0f172a] border border-[#1e293b] rounded-lg px-3 py-2 text-xs text-foreground">
+      <div className="font-semibold">{payload.name}</div>
+      <div className="text-muted-foreground mt-0.5">
+        {SAR2.format(Number(payload.size ?? 0))} · {pct.toFixed(2)}% of {payload.rawCategory ?? "total"}
+      </div>
     </div>
   );
 }
 
-function MoversPanel({ title, rows, positive }: { title: string; rows: SaudiStock[]; positive: boolean }) {
+function truncate(s: string, max: number): string {
+  if (max <= 1) return "";
+  if (s.length <= max) return s;
+  return s.slice(0, Math.max(1, max - 1)) + "…";
+}
+
+function MoversRow({ data }: { data: ApiResponse }) {
+  if (data.topGainers.length === 0 && data.topLosers.length === 0) return null;
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <MoversPanel title="Saudi holdings — today's top gainers" rows={data.topGainers} />
+      <MoversPanel title="Saudi holdings — today's top losers" rows={data.topLosers} />
+    </div>
+  );
+}
+
+function MoversPanel({ title, rows }: { title: string; rows: SaudiStock[] }) {
   return (
     <Panel title={title}>
       <div className="space-y-2">
@@ -451,7 +646,7 @@ function Card({
   );
 }
 
-function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+function Panel({ title, children, right }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
@@ -513,10 +708,16 @@ function Th({ children, align = "left", onClick }: { children: React.ReactNode; 
   );
 }
 
+function brokerList(brokers: Array<{ capitalFirm: string }>): string {
+  if (brokers.length <= 1) return brokers[0]?.capitalFirm ?? "—";
+  return `${brokers.length} brokers`;
+}
+
 function SaudiStocksTab({ rows, unmatched }: { rows: SaudiStock[]; unmatched: number }) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<keyof SaudiStock>("liveValue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -526,7 +727,7 @@ function SaudiStocksTab({ rows, unmatched }: { rows: SaudiStock[]; unmatched: nu
             r.stockCode.toLowerCase().includes(q) ||
             (r.companyName ?? "").toLowerCase().includes(q) ||
             (r.sector ?? "").toLowerCase().includes(q) ||
-            r.capitalFirm.toLowerCase().includes(q)
+            r.brokers.some((b) => b.capitalFirm.toLowerCase().includes(q))
         )
       : rows;
     return [...list].sort((a, b) => {
@@ -546,13 +747,22 @@ function SaudiStocksTab({ rows, unmatched }: { rows: SaudiStock[]; unmatched: nu
     else { setSortKey(key); setSortDir("desc"); }
   }
 
+  function toggle(code: string) {
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="text-sm font-semibold">Saudi Stocks</h3>
           <span className="text-[10px] text-muted-foreground">
-            {filtered.length} of {rows.length}
+            {filtered.length} of {rows.length} unique
           </span>
           {unmatched > 0 && (
             <span className="text-[10px] px-2 py-0.5 rounded-md bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
@@ -574,11 +784,12 @@ function SaudiStocksTab({ rows, unmatched }: { rows: SaudiStock[]; unmatched: nu
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
             <tr>
+              <th className="w-6"></th>
               <Th onClick={() => head("stockCode")}>Code</Th>
               <Th onClick={() => head("companyName")}>Company</Th>
-              <Th onClick={() => head("capitalFirm")}>Broker</Th>
+              <Th>Broker</Th>
               <Th align="right" onClick={() => head("qty")}>Qty</Th>
-              <Th align="right" onClick={() => head("stockCost")}>Avg cost</Th>
+              <Th align="right" onClick={() => head("avgCost")}>Avg cost</Th>
               <Th align="right" onClick={() => head("livePrice")}>Live price</Th>
               <Th align="right" onClick={() => head("livePctChange")}>Today %</Th>
               <Th align="right" onClick={() => head("totalCost")}>Cost</Th>
@@ -591,30 +802,58 @@ function SaudiStocksTab({ rows, unmatched }: { rows: SaudiStock[]; unmatched: nu
             {filtered.map((r) => {
               const pnlPos = (r.pnl ?? 0) >= 0;
               const dayPos = (r.livePctChange ?? 0) >= 0;
+              const multi = r.brokers.length > 1;
+              const open = expanded.has(r.stockCode);
               return (
-                <tr key={`${r.capitalFirm}-${r.stockCode}`} className="border-b border-border/40 hover:bg-accent/50">
-                  <td className="px-3 py-2 font-mono font-medium">{r.stockCode}</td>
-                  <td className="px-3 py-2 truncate max-w-[220px]">{r.companyName || <span className="text-muted-foreground italic">unknown</span>}</td>
-                  <td className="px-3 py-2 text-muted-foreground capitalize">{r.capitalFirm.toLowerCase()}</td>
-                  <td className="px-3 py-2 text-right font-mono">{NUM.format(r.qty)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{r.stockCost?.toFixed(2) ?? "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono">{r.livePrice?.toFixed(2) ?? "—"}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.livePctChange == null ? "text-muted-foreground" : dayPos ? "text-green-400" : "text-red-400"}`}>
-                    {r.livePctChange != null ? PCT(r.livePctChange) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono">{r.totalCost != null ? SAR2.format(r.totalCost) : "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono font-medium">{r.liveValue != null ? SAR2.format(r.liveValue) : "—"}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.pnl == null ? "text-muted-foreground" : pnlPos ? "text-green-400" : "text-red-400"}`}>
-                    {r.pnl != null ? (pnlPos ? "+" : "") + SAR2.format(r.pnl) : "—"}
-                  </td>
-                  <td className={`px-3 py-2 text-right font-mono ${r.pnlPct == null ? "text-muted-foreground" : pnlPos ? "text-green-400" : "text-red-400"}`}>
-                    {r.pnlPct != null ? PCT(r.pnlPct) : "—"}
-                  </td>
-                </tr>
+                <>
+                  <tr
+                    key={r.stockCode}
+                    className={`border-b border-border/40 hover:bg-accent/50 ${multi ? "cursor-pointer" : ""}`}
+                    onClick={() => multi && toggle(r.stockCode)}
+                  >
+                    <td className="px-2 py-2 text-muted-foreground">
+                      {multi && (
+                        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
+                      )}
+                    </td>
+                    <td className="px-3 py-2 font-mono font-medium">{r.stockCode}</td>
+                    <td className="px-3 py-2 truncate max-w-[220px]">{r.companyName || <span className="text-muted-foreground italic">unknown</span>}</td>
+                    <td className="px-3 py-2 text-muted-foreground capitalize">{brokerList(r.brokers)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{NUM.format(r.qty)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{r.avgCost != null ? r.avgCost.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono">{r.livePrice?.toFixed(2) ?? "—"}</td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.livePctChange == null ? "text-muted-foreground" : dayPos ? "text-green-400" : "text-red-400"}`}>
+                      {r.livePctChange != null ? PCT(r.livePctChange) : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">{r.totalCost != null ? SAR2.format(r.totalCost) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono font-medium">{r.liveValue != null ? SAR2.format(r.liveValue) : "—"}</td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.pnl == null ? "text-muted-foreground" : pnlPos ? "text-green-400" : "text-red-400"}`}>
+                      {r.pnl != null ? (pnlPos ? "+" : "") + SAR2.format(r.pnl) : "—"}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.pnlPct == null ? "text-muted-foreground" : pnlPos ? "text-green-400" : "text-red-400"}`}>
+                      {r.pnlPct != null ? PCT(r.pnlPct) : "—"}
+                    </td>
+                  </tr>
+                  {multi && open && r.brokers.map((b, i) => (
+                    <tr key={r.stockCode + "-b-" + i} className="bg-background/40 border-b border-border/40 text-muted-foreground">
+                      <td></td>
+                      <td className="px-3 py-1.5 font-mono text-[10px]">↳</td>
+                      <td className="px-3 py-1.5 text-[11px]" colSpan={2}>
+                        <span className="capitalize">{b.capitalFirm.toLowerCase()}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{NUM.format(b.qty)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">
+                        {b.totalCost != null && b.qty > 0 ? (b.totalCost / b.qty).toFixed(2) : "—"}
+                      </td>
+                      <td colSpan={3} className="px-3 py-1.5 text-right font-mono text-[11px]">{b.totalCost != null ? SAR2.format(b.totalCost) : "—"}</td>
+                      <td colSpan={3} className="px-3 py-1.5 text-right font-mono text-[11px]">{b.brokerCurrentValue != null ? SAR2.format(b.brokerCurrentValue) : "—"}</td>
+                    </tr>
+                  ))}
+                </>
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">No matches</td></tr>
+              <tr><td colSpan={12} className="px-3 py-8 text-center text-muted-foreground">No matches</td></tr>
             )}
           </tbody>
         </table>
@@ -624,19 +863,29 @@ function SaudiStocksTab({ rows, unmatched }: { rows: SaudiStock[]; unmatched: nu
 }
 
 function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  function toggle(key: string) {
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold">Saudi Funds</h3>
+        <h3 className="text-sm font-semibold">Saudi Funds <span className="text-[10px] text-muted-foreground ml-1">({rows.length} unique)</span></h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Capital firm</th>
+              <th className="w-6"></th>
               <th className="px-3 py-2 text-left font-medium">Fund</th>
+              <th className="px-3 py-2 text-left font-medium">Broker(s)</th>
               <th className="px-3 py-2 text-right font-medium">Units</th>
-              <th className="px-3 py-2 text-right font-medium">Cost/unit</th>
+              <th className="px-3 py-2 text-right font-medium">Avg cost/unit</th>
               <th className="px-3 py-2 text-right font-medium">Total cost</th>
               <th className="px-3 py-2 text-right font-medium">NAV</th>
               <th className="px-3 py-2 text-right font-medium">Market value</th>
@@ -644,26 +893,52 @@ function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((f, i) => {
-              const pnl = (f.marketValue ?? 0) - (f.totalCost ?? 0);
-              const pnlPct = (f.totalCost ?? 0) > 0 ? (pnl / (f.totalCost as number)) * 100 : 0;
-              const pos = pnl >= 0;
+            {rows.map((f) => {
+              const pos = (f.pnl ?? 0) >= 0;
+              const multi = f.brokers.length > 1;
+              const open = expanded.has(f.fundName);
               return (
-                <tr key={i} className="border-b border-border/40 hover:bg-accent/50">
-                  <td className="px-3 py-2 text-muted-foreground">{f.capitalFirm}</td>
-                  <td className="px-3 py-2 max-w-[360px] truncate" title={f.fundName}>{f.fundName}</td>
-                  <td className="px-3 py-2 text-right font-mono">{NUM.format(f.qty)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{f.costPerUnit?.toFixed(2) ?? "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono">{f.totalCost != null ? SAR2.format(f.totalCost) : "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono">{f.closePrice?.toFixed(2) ?? "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono font-medium">{f.marketValue != null ? SAR2.format(f.marketValue) : "—"}</td>
-                  <td className={`px-3 py-2 text-right font-mono ${pos ? "text-green-400" : "text-red-400"}`}>
-                    {(pos ? "+" : "") + SAR2.format(pnl)} <span className="text-[10px] opacity-70">{PCT(pnlPct)}</span>
-                  </td>
-                </tr>
+                <>
+                  <tr
+                    key={f.fundName}
+                    className={`border-b border-border/40 hover:bg-accent/50 ${multi ? "cursor-pointer" : ""}`}
+                    onClick={() => multi && toggle(f.fundName)}
+                  >
+                    <td className="px-2 py-2 text-muted-foreground">
+                      {multi && (
+                        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
+                      )}
+                    </td>
+                    <td className="px-3 py-2 max-w-[360px] truncate" title={f.fundName}>{f.fundName}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{brokerList(f.brokers)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{NUM.format(f.qty)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{f.avgCostPerUnit?.toFixed(2) ?? "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono">{f.totalCost != null ? SAR2.format(f.totalCost) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono">{f.closePrice?.toFixed(2) ?? "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono font-medium">{f.marketValue != null ? SAR2.format(f.marketValue) : "—"}</td>
+                    <td className={`px-3 py-2 text-right font-mono ${pos ? "text-green-400" : "text-red-400"}`}>
+                      {f.pnl != null ? (pos ? "+" : "") + SAR2.format(f.pnl) : "—"}{" "}
+                      {f.pnlPct != null && <span className="text-[10px] opacity-70">{PCT(f.pnlPct)}</span>}
+                    </td>
+                  </tr>
+                  {multi && open && f.brokers.map((b, i) => (
+                    <tr key={f.fundName + "-b-" + i} className="bg-background/40 border-b border-border/40 text-muted-foreground">
+                      <td></td>
+                      <td className="px-3 py-1.5 text-[11px]" colSpan={2}>↳ <span className="capitalize">{b.capitalFirm.toLowerCase()}</span></td>
+                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{NUM.format(b.qty)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">
+                        {b.totalCost != null && b.qty > 0 ? (b.totalCost / b.qty).toFixed(2) : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{b.totalCost != null ? SAR2.format(b.totalCost) : "—"}</td>
+                      <td></td>
+                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{b.marketValue != null ? SAR2.format(b.marketValue) : "—"}</td>
+                      <td></td>
+                    </tr>
+                  ))}
+                </>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No fund holdings</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">No fund holdings</td></tr>}
           </tbody>
         </table>
       </div>

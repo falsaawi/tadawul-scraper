@@ -38,6 +38,7 @@ interface SaudiFundRow {
   pnl: number | null;
   pnlPct: number | null;
   brokers: Array<{
+    id: string;
     capitalFirm: string;
     qty: number;
     totalCost: number | null;
@@ -234,6 +235,7 @@ export async function GET() {
     }
     if (cur.closePrice == null && f.closePrice != null) cur.closePrice = f.closePrice;
     cur.brokers.push({
+      id: f.id,
       capitalFirm: f.capitalFirm,
       qty: f.qty,
       totalCost: f.totalCost,

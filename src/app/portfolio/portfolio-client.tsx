@@ -68,6 +68,7 @@ interface SaudiFund {
   pnl: number | null;
   pnlPct: number | null;
   brokers: Array<{
+    id: string;
     capitalFirm: string;
     qty: number;
     totalCost: number | null;
@@ -76,6 +77,7 @@ interface SaudiFund {
 }
 
 interface UsaStock {
+  id: string;
   ticker: string;
   qty: number;
   costValue: number | null;
@@ -85,6 +87,7 @@ interface UsaStock {
 }
 
 interface GulfStock {
+  id: string;
   capitalFirm: string | null;
   market: string;
   stockCode: string;
@@ -94,6 +97,7 @@ interface GulfStock {
 }
 
 interface CashRow {
+  id: string;
   capitalFirm: string;
   portfolio: string | null;
   amount: number;
@@ -279,10 +283,10 @@ export function PortfolioClient() {
             }}
           />
           {tab === "saudi-stocks" && <SaudiStocksTab rows={data.saudiStocks} unmatched={data.totals.saudiStocksUnmatched} onUpdated={load} />}
-          {tab === "saudi-funds" && <SaudiFundsTab rows={data.saudiFunds} />}
-          {tab === "usa" && <UsaStocksTab rows={data.usaStocks} />}
-          {tab === "gulf" && <GulfStocksTab rows={data.gulfStocks} />}
-          {tab === "cash" && <CashTab rows={data.cash} total={data.totals.cash} />}
+          {tab === "saudi-funds" && <SaudiFundsTab rows={data.saudiFunds} onUpdated={load} />}
+          {tab === "usa" && <UsaStocksTab rows={data.usaStocks} onUpdated={load} />}
+          {tab === "gulf" && <GulfStocksTab rows={data.gulfStocks} onUpdated={load} />}
+          {tab === "cash" && <CashTab rows={data.cash} total={data.totals.cash} onUpdated={load} />}
         </>
       )}
 
@@ -676,6 +680,94 @@ function Th({ children, align = "left", onClick }: { children: React.ReactNode; 
 function brokerList(brokers: Array<{ capitalFirm: string }>): string {
   if (brokers.length <= 1) return brokers[0]?.capitalFirm ?? "—";
   return `${brokers.length} brokers`;
+}
+
+function useRowEdit(opts: { endpoint: (id: string) => string; onSuccess: () => void }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function start(id: string, initial: Record<string, string | number | null | undefined>) {
+    const v: Record<string, string> = {};
+    for (const [k, val] of Object.entries(initial)) {
+      v[k] = val == null ? "" : String(val);
+    }
+    setEditingId(id);
+    setValues(v);
+    setError(null);
+  }
+  function cancel() {
+    setEditingId(null);
+    setValues({});
+    setError(null);
+  }
+  function setField(k: string, v: string) {
+    setValues((s) => ({ ...s, [k]: v }));
+  }
+  async function save(payload: Record<string, unknown>) {
+    if (!editingId) return false;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(opts.endpoint(editingId), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? `HTTP ${res.status}`);
+        return false;
+      }
+      cancel();
+      opts.onSuccess();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+  return { editingId, values, setField, start, cancel, save, saving, error };
+}
+
+function EditNumberInput({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  disabled,
+  width = "w-20",
+  step = "any",
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  disabled?: boolean;
+  width?: string;
+  step?: string;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type="number"
+      step={step}
+      min="0"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSave();
+        if (e.key === "Escape") onCancel();
+      }}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={`${width} px-1.5 py-0.5 text-right font-mono bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50`}
+    />
+  );
 }
 
 function SaudiStocksTab({
@@ -1080,8 +1172,13 @@ function EditCell({
   );
 }
 
-function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
+function SaudiFundsTab({ rows, onUpdated }: { rows: SaudiFund[]; onUpdated: () => void }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const edit = useRowEdit({
+    endpoint: (id) => `/api/investment/saudi-fund/${id}`,
+    onSuccess: onUpdated,
+  });
+
   function toggle(key: string) {
     setExpanded((s) => {
       const next = new Set(s);
@@ -1090,11 +1187,25 @@ function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
       return next;
     });
   }
+
+  function saveFund() {
+    return edit.save({
+      qty: Number(edit.values.qty),
+      costPerUnit: edit.values.costPerUnit === "" ? null : Number(edit.values.costPerUnit),
+      closePrice: edit.values.closePrice === "" ? null : Number(edit.values.closePrice),
+    });
+  }
+
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold">Saudi Funds <span className="text-[10px] text-muted-foreground ml-1">({rows.length} unique)</span></h3>
+        <h3 className="text-sm font-semibold">
+          Saudi Funds <span className="text-[10px] text-muted-foreground ml-1">({rows.length} unique) · click <Pencil className="inline h-2.5 w-2.5" /> to edit</span>
+        </h3>
       </div>
+      {edit.error && (
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs">{edit.error}</div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
@@ -1108,6 +1219,7 @@ function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
               <th className="px-3 py-2 text-right font-medium">NAV</th>
               <th className="px-3 py-2 text-right font-medium">Market value</th>
               <th className="px-3 py-2 text-right font-medium">P/L</th>
+              <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -1115,48 +1227,99 @@ function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
               const pos = (f.pnl ?? 0) >= 0;
               const multi = f.brokers.length > 1;
               const open = expanded.has(f.fundName);
+              const onlyBroker = !multi ? f.brokers[0] : undefined;
+              const isEditingMain = onlyBroker && edit.editingId === onlyBroker.id;
               return (
-                <>
+                <Fragment key={f.fundName}>
                   <tr
-                    key={f.fundName}
                     className={`border-b border-border/40 hover:bg-accent/50 ${multi ? "cursor-pointer" : ""}`}
-                    onClick={() => multi && toggle(f.fundName)}
+                    onClick={(e) => {
+                      if (isEditingMain) return;
+                      const t = e.target as HTMLElement;
+                      if (t.closest("input,button")) return;
+                      if (multi) toggle(f.fundName);
+                    }}
                   >
                     <td className="px-2 py-2 text-muted-foreground">
-                      {multi && (
-                        <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
-                      )}
+                      {multi && <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />}
                     </td>
                     <td className="px-3 py-2 max-w-[360px] truncate" title={f.fundName}>{f.fundName}</td>
                     <td className="px-3 py-2 text-muted-foreground">{brokerList(f.brokers)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{NUM.format(f.qty)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{f.avgCostPerUnit?.toFixed(2) ?? "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {isEditingMain ? (
+                        <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} />
+                      ) : NUM.format(f.qty)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {isEditingMain ? (
+                        <EditNumberInput value={edit.values.costPerUnit ?? ""} onChange={(v) => edit.setField("costPerUnit", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" />
+                      ) : (f.avgCostPerUnit?.toFixed(2) ?? "—")}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono">{f.totalCost != null ? SAR2.format(f.totalCost) : "—"}</td>
-                    <td className="px-3 py-2 text-right font-mono">{f.closePrice?.toFixed(2) ?? "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {isEditingMain ? (
+                        <EditNumberInput value={edit.values.closePrice ?? ""} onChange={(v) => edit.setField("closePrice", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" />
+                      ) : (f.closePrice?.toFixed(2) ?? "—")}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono font-medium">{f.marketValue != null ? SAR2.format(f.marketValue) : "—"}</td>
                     <td className={`px-3 py-2 text-right font-mono ${pos ? "text-green-400" : "text-red-400"}`}>
                       {f.pnl != null ? (pos ? "+" : "") + SAR2.format(f.pnl) : "—"}{" "}
                       {f.pnlPct != null && <span className="text-[10px] opacity-70">{PCT(f.pnlPct)}</span>}
                     </td>
+                    <td className="px-2 py-2 text-right">
+                      <EditCell
+                        editable={!!onlyBroker}
+                        editing={!!isEditingMain}
+                        saving={edit.saving && !!isEditingMain}
+                        onEdit={() => onlyBroker && edit.start(onlyBroker.id, { qty: f.qty, costPerUnit: f.avgCostPerUnit, closePrice: f.closePrice })}
+                        onSave={saveFund}
+                        onCancel={edit.cancel}
+                        hint={multi ? "Expand to edit per broker" : undefined}
+                      />
+                    </td>
                   </tr>
-                  {multi && open && f.brokers.map((b, i) => (
-                    <tr key={f.fundName + "-b-" + i} className="bg-background/40 border-b border-border/40 text-muted-foreground">
-                      <td></td>
-                      <td className="px-3 py-1.5 text-[11px]" colSpan={2}>↳ <span className="capitalize">{b.capitalFirm.toLowerCase()}</span></td>
-                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{NUM.format(b.qty)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">
-                        {b.totalCost != null && b.qty > 0 ? (b.totalCost / b.qty).toFixed(2) : "—"}
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{b.totalCost != null ? SAR2.format(b.totalCost) : "—"}</td>
-                      <td></td>
-                      <td className="px-3 py-1.5 text-right font-mono text-[11px]">{b.marketValue != null ? SAR2.format(b.marketValue) : "—"}</td>
-                      <td></td>
-                    </tr>
-                  ))}
-                </>
+                  {multi && open && f.brokers.map((b) => {
+                    const bAvg = b.totalCost != null && b.qty > 0 ? b.totalCost / b.qty : null;
+                    const isEditingThis = edit.editingId === b.id;
+                    return (
+                      <tr key={b.id} className="bg-background/40 border-b border-border/40 text-muted-foreground">
+                        <td></td>
+                        <td className="px-3 py-1.5 text-[11px]" colSpan={2}>↳ <span className="capitalize">{b.capitalFirm.toLowerCase()}</span></td>
+                        <td className="px-3 py-1.5 text-right font-mono text-[11px]">
+                          {isEditingThis ? (
+                            <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} />
+                          ) : NUM.format(b.qty)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono text-[11px]">
+                          {isEditingThis ? (
+                            <EditNumberInput value={edit.values.costPerUnit ?? ""} onChange={(v) => edit.setField("costPerUnit", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" />
+                          ) : (bAvg != null ? bAvg.toFixed(2) : "—")}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono text-[11px]">{b.totalCost != null ? SAR2.format(b.totalCost) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-[11px]">
+                          {isEditingThis ? (
+                            <EditNumberInput value={edit.values.closePrice ?? ""} onChange={(v) => edit.setField("closePrice", v)} onSave={saveFund} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" />
+                          ) : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono text-[11px]">{b.marketValue != null ? SAR2.format(b.marketValue) : "—"}</td>
+                        <td></td>
+                        <td className="px-2 py-1.5 text-right">
+                          <EditCell
+                            editable
+                            editing={isEditingThis}
+                            saving={edit.saving && isEditingThis}
+                            onEdit={() => edit.start(b.id, { qty: b.qty, costPerUnit: bAvg, closePrice: f.closePrice })}
+                            onSave={saveFund}
+                            onCancel={edit.cancel}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">No fund holdings</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">No fund holdings</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1164,13 +1327,29 @@ function SaudiFundsTab({ rows }: { rows: SaudiFund[] }) {
   );
 }
 
-function UsaStocksTab({ rows }: { rows: UsaStock[] }) {
+function UsaStocksTab({ rows, onUpdated }: { rows: UsaStock[]; onUpdated: () => void }) {
+  const edit = useRowEdit({
+    endpoint: (id) => `/api/investment/usa-stock/${id}`,
+    onSuccess: onUpdated,
+  });
+  function saveUsa() {
+    return edit.save({
+      qty: Number(edit.values.qty),
+      costValue: edit.values.costValue === "" ? null : Number(edit.values.costValue),
+      closePrice: edit.values.closePrice === "" ? null : Number(edit.values.closePrice),
+    });
+  }
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <h3 className="text-sm font-semibold">USA Stocks</h3>
-        <span className="text-[10px] text-muted-foreground">Values from broker snapshot (no live link)</span>
+        <span className="text-[10px] text-muted-foreground">
+          Values from broker snapshot · click <Pencil className="inline h-2.5 w-2.5" /> to edit
+        </span>
       </div>
+      {edit.error && (
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs">{edit.error}</div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
@@ -1181,24 +1360,48 @@ function UsaStocksTab({ rows }: { rows: UsaStock[] }) {
               <th className="px-3 py-2 text-right font-medium">Close</th>
               <th className="px-3 py-2 text-right font-medium">Market value</th>
               <th className="px-3 py-2 text-right font-medium">P/L</th>
+              <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((u, i) => {
+            {rows.map((u) => {
               const pnl = u.profitLoss ?? ((u.marketValue ?? 0) - (u.costValue ?? 0));
               const pos = pnl >= 0;
+              const isEditing = edit.editingId === u.id;
               return (
-                <tr key={i} className="border-b border-border/40 hover:bg-accent/50">
+                <tr key={u.id} className="border-b border-border/40 hover:bg-accent/50">
                   <td className="px-3 py-2 font-mono font-medium">{u.ticker}</td>
-                  <td className="px-3 py-2 text-right font-mono">{NUM.format(u.qty)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{u.costValue != null ? SAR2.format(u.costValue) : "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono">{u.closePrice?.toFixed(2) ?? "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {isEditing ? (
+                      <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveUsa} onCancel={edit.cancel} disabled={edit.saving} />
+                    ) : NUM.format(u.qty)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {isEditing ? (
+                      <EditNumberInput value={edit.values.costValue ?? ""} onChange={(v) => edit.setField("costValue", v)} onSave={saveUsa} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" width="w-24" />
+                    ) : (u.costValue != null ? SAR2.format(u.costValue) : "—")}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {isEditing ? (
+                      <EditNumberInput value={edit.values.closePrice ?? ""} onChange={(v) => edit.setField("closePrice", v)} onSave={saveUsa} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" />
+                    ) : (u.closePrice?.toFixed(2) ?? "—")}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono font-medium">{u.marketValue != null ? SAR2.format(u.marketValue) : "—"}</td>
                   <td className={`px-3 py-2 text-right font-mono ${pos ? "text-green-400" : "text-red-400"}`}>{(pos ? "+" : "") + SAR2.format(pnl)}</td>
+                  <td className="px-2 py-2 text-right">
+                    <EditCell
+                      editable
+                      editing={isEditing}
+                      saving={edit.saving && isEditing}
+                      onEdit={() => edit.start(u.id, { qty: u.qty, costValue: u.costValue, closePrice: u.closePrice })}
+                      onSave={saveUsa}
+                      onCancel={edit.cancel}
+                    />
+                  </td>
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No USA holdings</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No USA holdings</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1206,13 +1409,28 @@ function UsaStocksTab({ rows }: { rows: UsaStock[] }) {
   );
 }
 
-function GulfStocksTab({ rows }: { rows: GulfStock[] }) {
+function GulfStocksTab({ rows, onUpdated }: { rows: GulfStock[]; onUpdated: () => void }) {
+  const edit = useRowEdit({
+    endpoint: (id) => `/api/investment/gulf-stock/${id}`,
+    onSuccess: onUpdated,
+  });
+  function saveGulf() {
+    return edit.save({
+      qty: Number(edit.values.qty),
+      marketPrice: edit.values.marketPrice === "" ? null : Number(edit.values.marketPrice),
+    });
+  }
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <h3 className="text-sm font-semibold">Gulf Stocks</h3>
-        <span className="text-[10px] text-muted-foreground">Values from broker snapshot (no live link)</span>
+        <span className="text-[10px] text-muted-foreground">
+          Values from broker snapshot · click <Pencil className="inline h-2.5 w-2.5" /> to edit
+        </span>
       </div>
+      {edit.error && (
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs">{edit.error}</div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
@@ -1223,20 +1441,42 @@ function GulfStocksTab({ rows }: { rows: GulfStock[] }) {
               <th className="px-3 py-2 text-right font-medium">Qty</th>
               <th className="px-3 py-2 text-right font-medium">Price</th>
               <th className="px-3 py-2 text-right font-medium">Current value</th>
+              <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((g, i) => (
-              <tr key={i} className="border-b border-border/40 hover:bg-accent/50">
-                <td className="px-3 py-2 text-muted-foreground capitalize">{g.capitalFirm ?? "—"}</td>
-                <td className="px-3 py-2 capitalize">{g.market}</td>
-                <td className="px-3 py-2 font-mono">{g.stockCode}</td>
-                <td className="px-3 py-2 text-right font-mono">{NUM.format(g.qty)}</td>
-                <td className="px-3 py-2 text-right font-mono">{g.marketPrice?.toFixed(3) ?? "—"}</td>
-                <td className="px-3 py-2 text-right font-mono font-medium">{g.currentValue != null ? SAR2.format(g.currentValue) : "—"}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No Gulf holdings</td></tr>}
+            {rows.map((g) => {
+              const isEditing = edit.editingId === g.id;
+              return (
+                <tr key={g.id} className="border-b border-border/40 hover:bg-accent/50">
+                  <td className="px-3 py-2 text-muted-foreground capitalize">{g.capitalFirm ?? "—"}</td>
+                  <td className="px-3 py-2 capitalize">{g.market}</td>
+                  <td className="px-3 py-2 font-mono">{g.stockCode}</td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {isEditing ? (
+                      <EditNumberInput value={edit.values.qty ?? ""} onChange={(v) => edit.setField("qty", v)} onSave={saveGulf} onCancel={edit.cancel} disabled={edit.saving} />
+                    ) : NUM.format(g.qty)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {isEditing ? (
+                      <EditNumberInput value={edit.values.marketPrice ?? ""} onChange={(v) => edit.setField("marketPrice", v)} onSave={saveGulf} onCancel={edit.cancel} disabled={edit.saving} placeholder="—" />
+                    ) : (g.marketPrice?.toFixed(3) ?? "—")}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono font-medium">{g.currentValue != null ? SAR2.format(g.currentValue) : "—"}</td>
+                  <td className="px-2 py-2 text-right">
+                    <EditCell
+                      editable
+                      editing={isEditing}
+                      saving={edit.saving && isEditing}
+                      onEdit={() => edit.start(g.id, { qty: g.qty, marketPrice: g.marketPrice })}
+                      onSave={saveGulf}
+                      onCancel={edit.cancel}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No Gulf holdings</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1244,13 +1484,25 @@ function GulfStocksTab({ rows }: { rows: GulfStock[] }) {
   );
 }
 
-function CashTab({ rows, total }: { rows: CashRow[]; total: number }) {
+function CashTab({ rows, total, onUpdated }: { rows: CashRow[]; total: number; onUpdated: () => void }) {
+  const edit = useRowEdit({
+    endpoint: (id) => `/api/investment/cash/${id}`,
+    onSuccess: onUpdated,
+  });
+  function saveCash() {
+    return edit.save({ amount: Number(edit.values.amount) });
+  }
   return (
     <div className="bg-card border border-border rounded-xl">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <h3 className="text-sm font-semibold">Cash positions</h3>
-        <span className="text-[10px] text-muted-foreground">Total {SAR2.format(total)}</span>
+        <span className="text-[10px] text-muted-foreground">
+          Total {SAR2.format(total)} · click <Pencil className="inline h-2.5 w-2.5" /> to edit
+        </span>
       </div>
+      {edit.error && (
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs">{edit.error}</div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-background border-b border-border text-muted-foreground">
@@ -1258,17 +1510,35 @@ function CashTab({ rows, total }: { rows: CashRow[]; total: number }) {
               <th className="px-3 py-2 text-left font-medium">Broker</th>
               <th className="px-3 py-2 text-left font-medium">Account / portfolio</th>
               <th className="px-3 py-2 text-right font-medium">Amount</th>
+              <th className="px-2 w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((c, i) => (
-              <tr key={i} className="border-b border-border/40 hover:bg-accent/50">
-                <td className="px-3 py-2 capitalize">{c.capitalFirm}</td>
-                <td className="px-3 py-2 font-mono text-muted-foreground">{c.portfolio ?? "—"}</td>
-                <td className="px-3 py-2 text-right font-mono font-medium">{SAR2.format(c.amount)}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={3} className="px-3 py-8 text-center text-muted-foreground">No cash entries</td></tr>}
+            {rows.map((c) => {
+              const isEditing = edit.editingId === c.id;
+              return (
+                <tr key={c.id} className="border-b border-border/40 hover:bg-accent/50">
+                  <td className="px-3 py-2 capitalize">{c.capitalFirm}</td>
+                  <td className="px-3 py-2 font-mono text-muted-foreground">{c.portfolio ?? "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono font-medium">
+                    {isEditing ? (
+                      <EditNumberInput value={edit.values.amount ?? ""} onChange={(v) => edit.setField("amount", v)} onSave={saveCash} onCancel={edit.cancel} disabled={edit.saving} width="w-28" />
+                    ) : SAR2.format(c.amount)}
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <EditCell
+                      editable
+                      editing={isEditing}
+                      saving={edit.saving && isEditing}
+                      onEdit={() => edit.start(c.id, { amount: c.amount })}
+                      onSave={saveCash}
+                      onCancel={edit.cancel}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">No cash entries</td></tr>}
           </tbody>
         </table>
       </div>

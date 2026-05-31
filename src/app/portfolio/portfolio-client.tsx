@@ -18,6 +18,7 @@ import {
   X,
   Loader2,
   History,
+  Coins,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -31,6 +32,7 @@ import {
   Treemap,
 } from "recharts";
 import { UploadForm } from "./upload-form";
+import { DividendUploadForm } from "./dividend-upload-form";
 import { HistoryModal } from "./history-modal";
 
 type Tab = "saudi-stocks" | "saudi-funds" | "usa" | "gulf" | "cash";
@@ -61,7 +63,40 @@ interface SaudiStock {
   priceSource: "live" | "manual" | "none";
   pnl: number | null;
   pnlPct: number | null;
+  totalDividend: number;
+  dividendCount: number;
+  dividendYieldPct: number | null;
+  totalReturnPct: number | null;
   brokers: BrokerSlice[];
+}
+
+interface DividendAnalysis {
+  upload: { id: string; fileName: string; uploadedAt: string; rowCount: number } | null;
+  lifetime: number;
+  ytd: number;
+  lastYear: number;
+  last30Days: number;
+  count: number;
+  matched: number;
+  distinctCompanies: number;
+  byYear: Array<{ year: number; value: number; count: number }>;
+  topCompanies: Array<{ company: string; symbol: string | null; value: number; count: number }>;
+  topYielders: Array<{
+    symbol: string;
+    companyName: string | null;
+    totalDividend: number;
+    totalCost: number | null;
+    dividendYieldPct: number | null;
+  }>;
+  recent: Array<{
+    id: string;
+    company: string;
+    symbol: string | null;
+    value: number;
+    distDate: string | null;
+    status: string | null;
+    type: string | null;
+  }>;
 }
 
 interface SaudiFund {
@@ -166,6 +201,7 @@ interface ApiResponse {
   usaStocks: UsaStock[];
   gulfStocks: GulfStock[];
   cash: CashRow[];
+  dividends: DividendAnalysis;
 }
 
 const SAR = new Intl.NumberFormat("en-US", {
@@ -225,6 +261,7 @@ export function PortfolioClient() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
+  const [showDividendUpload, setShowDividendUpload] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   async function load() {
@@ -282,6 +319,13 @@ export function PortfolioClient() {
             <Upload className="h-4 w-4" />
             Upload workbook
           </button>
+          <button
+            onClick={() => setShowDividendUpload(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-sm font-medium hover:bg-emerald-500/20"
+          >
+            <Coins className="h-4 w-4" />
+            Upload dividends
+          </button>
         </div>
       </div>
 
@@ -315,6 +359,11 @@ export function PortfolioClient() {
           {tab === "usa" && <UsaStocksTab rows={data.usaStocks} onUpdated={load} />}
           {tab === "gulf" && <GulfStocksTab rows={data.gulfStocks} onUpdated={load} />}
           {tab === "cash" && <CashTab rows={data.cash} total={data.totals.cash} onUpdated={load} />}
+
+          <DividendAnalysisSection
+            analysis={data.dividends}
+            onUploadClick={() => setShowDividendUpload(true)}
+          />
         </>
       )}
 
@@ -323,6 +372,14 @@ export function PortfolioClient() {
         onClose={() => setShowUpload(false)}
         onSuccess={() => {
           setShowUpload(false);
+          load();
+        }}
+      />
+      <DividendUploadForm
+        open={showDividendUpload}
+        onClose={() => setShowDividendUpload(false)}
+        onSuccess={() => {
+          setShowDividendUpload(false);
           load();
         }}
       />
@@ -532,6 +589,203 @@ function GainCard({
           <div className="text-[10px] text-muted-foreground">no cost basis</div>
         </>
       )}
+    </div>
+  );
+}
+
+function DividendAnalysisSection({
+  analysis,
+  onUploadClick,
+}: {
+  analysis: DividendAnalysis;
+  onUploadClick: () => void;
+}) {
+  if (!analysis.upload) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 text-center">
+        <Coins className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+        <h3 className="text-sm font-semibold">No dividend report uploaded</h3>
+        <p className="text-xs text-muted-foreground mt-1 mb-3 max-w-md mx-auto">
+          Upload your broker dividend report to see lifetime totals, per-year
+          history, top yielders, and per-stock dividend totals in the Saudi
+          stocks table.
+        </p>
+        <button
+          onClick={onUploadClick}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-medium hover:bg-emerald-500/20"
+        >
+          <Upload className="h-3 w-3" />
+          Upload dividends
+        </button>
+      </div>
+    );
+  }
+
+  const maxYear = Math.max(1, ...analysis.byYear.map((b) => b.value));
+  const maxCompany = Math.max(1, ...analysis.topCompanies.map((b) => b.value));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-3 px-1">
+        <h2 className="text-base font-semibold text-foreground inline-flex items-center gap-2">
+          <Coins className="h-4 w-4 text-emerald-400" />
+          Dividend analysis
+        </h2>
+        <span className="text-[10px] text-muted-foreground">
+          {analysis.upload.fileName} · {analysis.count.toLocaleString()} payments ·{" "}
+          {analysis.matched.toLocaleString()} matched
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card
+          icon={<Coins className="h-4 w-4 text-emerald-400" />}
+          iconBg="bg-emerald-500/10"
+          label="Lifetime received"
+          value={SAR.format(analysis.lifetime)}
+          sub={`${analysis.distinctCompanies} companies`}
+        />
+        <Card
+          icon={<Coins className="h-4 w-4 text-green-400" />}
+          iconBg="bg-green-500/10"
+          label="Year to date"
+          value={SAR.format(analysis.ytd)}
+          sub={`Last cal year ${SAR.format(analysis.lastYear)}`}
+        />
+        <Card
+          icon={<Coins className="h-4 w-4 text-blue-400" />}
+          iconBg="bg-blue-500/10"
+          label="Last 30 days"
+          value={SAR.format(analysis.last30Days)}
+          sub={`${analysis.matched}/${analysis.count} rows matched`}
+        />
+        <Card
+          icon={<Coins className="h-4 w-4 text-purple-400" />}
+          iconBg="bg-purple-500/10"
+          label="Coverage"
+          value={
+            analysis.count > 0
+              ? `${Math.round((analysis.matched / analysis.count) * 100)}%`
+              : "—"
+          }
+          sub="Matched to symbols"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Panel title="Dividends per year">
+          <div className="space-y-1.5">
+            {analysis.byYear.length === 0 && (
+              <div className="text-xs text-muted-foreground py-4 text-center">No date breakdown</div>
+            )}
+            {analysis.byYear.map((y) => {
+              const width = `${Math.min(100, (y.value / maxYear) * 100)}%`;
+              return (
+                <div key={y.year} className="text-[11px]">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-mono text-muted-foreground">{y.year}</span>
+                    <span className="font-mono font-semibold">{SAR.format(y.value)}</span>
+                  </div>
+                  <div className="h-1.5 bg-background rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{ width }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+
+        <Panel title="Top 10 companies (lifetime)">
+          <div className="space-y-1.5">
+            {analysis.topCompanies.length === 0 && (
+              <div className="text-xs text-muted-foreground py-4 text-center">No data</div>
+            )}
+            {analysis.topCompanies.map((c) => {
+              const width = `${Math.min(100, (c.value / maxCompany) * 100)}%`;
+              return (
+                <div key={c.company} className="text-[11px]">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="truncate">
+                      {c.company}
+                      {c.symbol && <span className="ml-1.5 font-mono text-muted-foreground">{c.symbol}</span>}
+                    </span>
+                    <span className="font-mono font-semibold whitespace-nowrap">{SAR.format(c.value)}</span>
+                  </div>
+                  <div className="h-1.5 bg-background rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-400 rounded-full" style={{ width }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Panel title="Top yielders (vs cost basis)">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium">Symbol</th>
+                  <th className="px-2 py-1 text-left font-medium">Company</th>
+                  <th className="px-2 py-1 text-right font-medium">Dividends</th>
+                  <th className="px-2 py-1 text-right font-medium">Cost</th>
+                  <th className="px-2 py-1 text-right font-medium">Yield</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysis.topYielders.length === 0 && (
+                  <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">No matched stocks with cost</td></tr>
+                )}
+                {analysis.topYielders.map((y) => (
+                  <tr key={y.symbol} className="border-t border-border/40">
+                    <td className="px-2 py-1.5 font-mono font-medium">{y.symbol}</td>
+                    <td className="px-2 py-1.5 truncate max-w-[180px]">{y.companyName ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-right font-mono">{SAR2.format(y.totalDividend)}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">
+                      {y.totalCost != null ? SAR2.format(y.totalCost) : "—"}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono font-semibold text-emerald-400">
+                      {y.dividendYieldPct != null ? PCT(y.dividendYieldPct) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel title="Most recent payments">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium">Date</th>
+                  <th className="px-2 py-1 text-left font-medium">Company</th>
+                  <th className="px-2 py-1 text-left font-medium">Symbol</th>
+                  <th className="px-2 py-1 text-right font-medium">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysis.recent.length === 0 && (
+                  <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">No payments</td></tr>
+                )}
+                {analysis.recent.map((d) => (
+                  <tr key={d.id} className="border-t border-border/40">
+                    <td className="px-2 py-1.5 font-mono text-muted-foreground">
+                      {d.distDate ? new Date(d.distDate).toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "2-digit" }) : "—"}
+                    </td>
+                    <td className="px-2 py-1.5 truncate max-w-[200px]">{d.company}</td>
+                    <td className="px-2 py-1.5 font-mono">{d.symbol ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-right font-mono font-semibold">{SAR2.format(d.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -1194,6 +1448,8 @@ function SaudiStocksTab({
               <Th align="right" onClick={() => head("liveValue")}>Live value</Th>
               <Th align="right" onClick={() => head("pnl")}>P/L</Th>
               <Th align="right" onClick={() => head("pnlPct")}>P/L %</Th>
+              <Th align="right" onClick={() => head("totalDividend")}>Dividends</Th>
+              <Th align="right" onClick={() => head("dividendYieldPct")}>Div %</Th>
               <th className="px-2 w-20"></th>
             </tr>
           </thead>
@@ -1334,6 +1590,15 @@ function SaudiStocksTab({
                     <td className={`px-3 py-2 text-right font-mono ${r.pnlPct == null ? "text-muted-foreground" : pnlPos ? "text-green-400" : "text-red-400"}`}>
                       {r.pnlPct != null ? PCT(r.pnlPct) : "—"}
                     </td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.totalDividend > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {r.totalDividend > 0 ? SAR2.format(r.totalDividend) : "—"}
+                      {r.dividendCount > 0 && (
+                        <span className="ml-1 text-[9px] text-muted-foreground">×{r.dividendCount}</span>
+                      )}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.dividendYieldPct != null && r.dividendYieldPct > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {r.dividendYieldPct != null && r.dividendYieldPct > 0 ? PCT(r.dividendYieldPct) : "—"}
+                    </td>
                     <td className="px-2 py-2 text-right">
                       <EditCell
                         editable={!!onlyBroker}
@@ -1433,7 +1698,7 @@ function SaudiStocksTab({
                         <td colSpan={3} className="px-3 py-1.5 text-right font-mono text-[11px]">
                           {b.totalCost != null ? SAR2.format(b.totalCost) : "—"}
                         </td>
-                        <td colSpan={3} className="px-3 py-1.5 text-right font-mono text-[11px]">
+                        <td colSpan={5} className="px-3 py-1.5 text-right font-mono text-[11px]">
                           {b.brokerCurrentValue != null ? SAR2.format(b.brokerCurrentValue) : "—"}
                         </td>
                         <td className="px-2 py-1.5 text-right">
@@ -1453,7 +1718,7 @@ function SaudiStocksTab({
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">No matches</td></tr>
+              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">No matches</td></tr>
             )}
           </tbody>
         </table>

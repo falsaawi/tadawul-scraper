@@ -255,3 +255,34 @@ model InvestmentTransaction {
   @@index([createdAt])
   @@index([entityType, entityId])
 }
+
+model DividendUpload {
+  id         String   @id @default(cuid())
+  fileName   String
+  uploadedAt DateTime @default(now())
+  rowCount   Int      @default(0)
+
+  dividends  DividendPayment[]
+
+  @@index([uploadedAt])
+}
+
+model DividendPayment {
+  id              String         @id @default(cuid())
+  uploadId        String
+  upload          DividendUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  company         String
+  symbol          String?
+  value           Float
+  perShare        Float?
+  units           Float?
+  distDate        DateTime?
+  eligibilityDate DateTime?
+  announceDate    DateTime?
+  type            String?
+  status          String?
+
+  @@index([uploadId])
+  @@index([symbol])
+  @@index([distDate])
+}

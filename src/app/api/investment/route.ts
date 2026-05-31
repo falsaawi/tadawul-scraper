@@ -29,6 +29,10 @@ interface SaudiStockRow {
   priceSource: "live" | "manual" | "none";
   pnl: number | null;
   pnlPct: number | null;
+  totalDividend: number;
+  dividendCount: number;
+  dividendYieldPct: number | null;
+  totalReturnPct: number | null;
   brokers: BrokerSlice[];
 }
 
@@ -59,28 +63,52 @@ export async function GET() {
     return NextResponse.json({ upload: null });
   }
 
-  const [cash, saudiStocks, saudiFunds, usaStocks, gulfStocks, lastSession] =
-    await Promise.all([
-      prisma.investmentCash.findMany({ where: { uploadId: upload.id } }),
-      prisma.investmentSaudiStock.findMany({
-        where: { uploadId: upload.id },
-      }),
-      prisma.investmentSaudiFund.findMany({
-        where: { uploadId: upload.id },
-      }),
-      prisma.investmentUsaStock.findMany({
-        where: { uploadId: upload.id },
-        orderBy: { marketValue: "desc" },
-      }),
-      prisma.investmentGulfStock.findMany({
-        where: { uploadId: upload.id },
-        orderBy: { currentValue: "desc" },
-      }),
-      prisma.scrapeSession.findFirst({
-        where: { status: "completed" },
-        orderBy: { startedAt: "desc" },
-      }),
-    ]);
+  const lastDivUpload = await prisma.dividendUpload.findFirst({
+    orderBy: { uploadedAt: "desc" },
+  });
+
+  const [
+    cash,
+    saudiStocks,
+    saudiFunds,
+    usaStocks,
+    gulfStocks,
+    lastSession,
+    dividends,
+  ] = await Promise.all([
+    prisma.investmentCash.findMany({ where: { uploadId: upload.id } }),
+    prisma.investmentSaudiStock.findMany({ where: { uploadId: upload.id } }),
+    prisma.investmentSaudiFund.findMany({ where: { uploadId: upload.id } }),
+    prisma.investmentUsaStock.findMany({
+      where: { uploadId: upload.id },
+      orderBy: { marketValue: "desc" },
+    }),
+    prisma.investmentGulfStock.findMany({
+      where: { uploadId: upload.id },
+      orderBy: { currentValue: "desc" },
+    }),
+    prisma.scrapeSession.findFirst({
+      where: { status: "completed" },
+      orderBy: { startedAt: "desc" },
+    }),
+    lastDivUpload
+      ? prisma.dividendPayment.findMany({
+          where: { uploadId: lastDivUpload.id },
+          orderBy: { distDate: "desc" },
+        })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.dividendPayment.findMany>>),
+  ]);
+
+  // Aggregate dividends by resolved symbol for joining to Saudi holdings
+  type DivAgg = { total: number; count: number };
+  const divBySymbol = new Map<string, DivAgg>();
+  for (const d of dividends) {
+    if (!d.symbol) continue;
+    const cur = divBySymbol.get(d.symbol) ?? { total: 0, count: 0 };
+    cur.total += d.value;
+    cur.count += 1;
+    divBySymbol.set(d.symbol, cur);
+  }
 
   // Build live price + company name lookup from latest scrape
   type Live = { price: number | null; pct: number | null; companyName: string };
@@ -188,6 +216,17 @@ export async function GET() {
       pnl != null && totalCost != null && totalCost > 0
         ? (pnl / totalCost) * 100
         : null;
+    const divAgg =
+      divBySymbol.get(a.stockCode) ??
+      divBySymbol.get(a.stockCode.padStart(4, "0")) ??
+      divBySymbol.get(a.stockCode.replace(/^0+/, "")) ??
+      { total: 0, count: 0 };
+    const dividendYieldPct =
+      totalCost != null && totalCost > 0 ? (divAgg.total / totalCost) * 100 : null;
+    const totalReturnPct =
+      pnl != null && totalCost != null && totalCost > 0
+        ? ((pnl + divAgg.total) / totalCost) * 100
+        : null;
     return {
       stockCode: a.stockCode,
       companyName: live?.companyName ?? a.customCompanyName ?? null,
@@ -204,6 +243,10 @@ export async function GET() {
       priceSource: isLive ? "live" : a.brokerMarketPrice != null ? "manual" : "none",
       pnl,
       pnlPct,
+      totalDividend: divAgg.total,
+      dividendCount: divAgg.count,
+      dividendYieldPct,
+      totalReturnPct,
       brokers: a.brokers,
     };
   });
@@ -519,6 +562,131 @@ export async function GET() {
     .sort((a, b) => (a.livePctChange ?? 0) - (b.livePctChange ?? 0))
     .slice(0, 5);
 
+  // ---- Dividend analysis ----
+  let dividendsAnalysis: {
+    upload: { id: string; fileName: string; uploadedAt: Date; rowCount: number } | null;
+    lifetime: number;
+    ytd: number;
+    lastYear: number;
+    last30Days: number;
+    count: number;
+    matched: number;
+    distinctCompanies: number;
+    byYear: Array<{ year: number; value: number; count: number }>;
+    topCompanies: Array<{ company: string; symbol: string | null; value: number; count: number }>;
+    topYielders: Array<{
+      symbol: string;
+      companyName: string | null;
+      totalDividend: number;
+      totalCost: number | null;
+      dividendYieldPct: number | null;
+    }>;
+    recent: Array<{
+      id: string;
+      company: string;
+      symbol: string | null;
+      value: number;
+      distDate: Date | null;
+      status: string | null;
+      type: string | null;
+    }>;
+  } = {
+    upload: null,
+    lifetime: 0,
+    ytd: 0,
+    lastYear: 0,
+    last30Days: 0,
+    count: 0,
+    matched: 0,
+    distinctCompanies: 0,
+    byYear: [],
+    topCompanies: [],
+    topYielders: [],
+    recent: [],
+  };
+
+  if (lastDivUpload) {
+    const now = new Date();
+    const ytStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    const lyStart = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
+    const lyEnd = ytStart;
+    const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    let lifetime = 0,
+      ytd = 0,
+      lastYear = 0,
+      last30 = 0,
+      matched = 0;
+    const byYear = new Map<number, { value: number; count: number }>();
+    const byCompany = new Map<string, { value: number; count: number; symbol: string | null }>();
+
+    for (const d of dividends) {
+      lifetime += d.value;
+      if (d.symbol) matched++;
+      const dt = d.distDate;
+      if (dt) {
+        if (dt >= ytStart) ytd += d.value;
+        if (dt >= lyStart && dt < lyEnd) lastYear += d.value;
+        if (dt >= cutoff30) last30 += d.value;
+        const y = dt.getUTCFullYear();
+        const cur = byYear.get(y) ?? { value: 0, count: 0 };
+        cur.value += d.value;
+        cur.count += 1;
+        byYear.set(y, cur);
+      }
+      const c = byCompany.get(d.company) ?? { value: 0, count: 0, symbol: d.symbol };
+      c.value += d.value;
+      c.count += 1;
+      if (!c.symbol && d.symbol) c.symbol = d.symbol;
+      byCompany.set(d.company, c);
+    }
+
+    const topYielders = saudiRows
+      .filter((r) => r.dividendYieldPct != null && r.totalDividend > 0)
+      .sort((a, b) => (b.dividendYieldPct ?? 0) - (a.dividendYieldPct ?? 0))
+      .slice(0, 10)
+      .map((r) => ({
+        symbol: r.stockCode,
+        companyName: r.companyName,
+        totalDividend: r.totalDividend,
+        totalCost: r.totalCost,
+        dividendYieldPct: r.dividendYieldPct,
+      }));
+
+    dividendsAnalysis = {
+      upload: {
+        id: lastDivUpload.id,
+        fileName: lastDivUpload.fileName,
+        uploadedAt: lastDivUpload.uploadedAt,
+        rowCount: lastDivUpload.rowCount,
+      },
+      lifetime,
+      ytd,
+      lastYear,
+      last30Days: last30,
+      count: dividends.length,
+      matched,
+      distinctCompanies: byCompany.size,
+      byYear: Array.from(byYear.entries())
+        .map(([year, v]) => ({ year, value: v.value, count: v.count }))
+        .sort((a, b) => a.year - b.year),
+      topCompanies: Array.from(byCompany.entries())
+        .map(([company, v]) => ({ company, symbol: v.symbol, value: v.value, count: v.count }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10),
+      topYielders,
+      recent: dividends.slice(0, 15).map((d) => ({
+        id: d.id,
+        company: d.company,
+        symbol: d.symbol,
+        value: d.value,
+        distDate: d.distDate,
+        status: d.status,
+        type: d.type,
+      })),
+    };
+  }
+
   return NextResponse.json({
     upload: {
       id: upload.id,
@@ -554,5 +722,6 @@ export async function GET() {
     usaStocks,
     gulfStocks,
     cash,
+    dividends: dividendsAnalysis,
   });
 }

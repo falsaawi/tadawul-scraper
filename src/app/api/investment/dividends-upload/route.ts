@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logTransaction } from "@/lib/portfolio-tx";
+import {
+  buildMappingIndex,
+  resolveSymbol,
+  type CandidateName,
+} from "@/lib/dividend-mapping";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -8,15 +13,6 @@ export const maxDuration = 60;
 interface Body {
   fileName?: string;
   rows?: Array<Record<string, unknown>>;
-}
-
-function normaliseName(s: string): string {
-  // Strip whitespace and common Arabic prefixes/suffixes to improve match rate
-  return s
-    .replace(/\s+/g, "")
-    .replace(/^شركة/, "")
-    .replace(/^مجموعة/, "")
-    .toLowerCase();
 }
 
 export async function POST(request: NextRequest) {
@@ -31,17 +27,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No dividend rows parsed" }, { status: 400 });
   }
 
-  // Build a company-name -> symbol map from any source we have. This is
-  // best-effort; rows that fail to resolve keep symbol=null and still show
-  // in totals (they just can't be tied to a specific Saudi holding).
-  const nameToSymbol = new Map<string, string>();
-  const indexName = (name: string | null | undefined, symbol: string) => {
-    if (!name) return;
-    const k = normaliseName(name);
-    if (k && !nameToSymbol.has(k)) nameToSymbol.set(k, symbol);
-  };
+  const candidates: CandidateName[] = [];
 
-  // 1) Latest completed scrape session (richest source)
   const lastSession = await prisma.scrapeSession.findFirst({
     where: { status: "completed" },
     orderBy: { startedAt: "desc" },
@@ -51,19 +38,19 @@ export async function POST(request: NextRequest) {
       where: { sessionId: lastSession.id },
       select: { symbol: true, companyName: true },
     });
-    for (const r of records) indexName(r.companyName, r.symbol);
+    for (const r of records) candidates.push({ symbol: r.symbol, name: r.companyName });
   }
-  // 2) Manually-edited names on Saudi holdings
   const stored = await prisma.investmentSaudiStock.findMany({
     where: { companyName: { not: null } },
     select: { stockCode: true, companyName: true },
   });
-  for (const s of stored) indexName(s.companyName, s.stockCode);
-  // 3) Company profiles
+  for (const s of stored) candidates.push({ symbol: s.stockCode, name: s.companyName });
   const profiles = await prisma.companyProfile.findMany({
     select: { symbol: true, companyName: true },
   });
-  for (const p of profiles) indexName(p.companyName, p.symbol);
+  for (const p of profiles) candidates.push({ symbol: p.symbol, name: p.companyName });
+
+  const index = buildMappingIndex(candidates);
 
   const upload = await prisma.dividendUpload.create({
     data: {
@@ -77,17 +64,7 @@ export async function POST(request: NextRequest) {
     await prisma.dividendPayment.createMany({
       data: body.rows.map((r) => {
         const company = String(r.company ?? "");
-        const key = normaliseName(company);
-        let symbol = nameToSymbol.get(key) ?? null;
-        if (!symbol && key) {
-          // Substring fallback — useful for short broker names like "اس تي سي"
-          for (const [k, v] of nameToSymbol) {
-            if (k.includes(key) || key.includes(k)) {
-              symbol = v;
-              break;
-            }
-          }
-        }
+        const symbol = resolveSymbol(company, index);
         if (symbol) matched++;
         return {
           uploadId: upload.id,
@@ -127,7 +104,7 @@ export async function POST(request: NextRequest) {
     },
     {
       entityId: upload.id,
-      summary: `Uploaded dividends ${upload.fileName} (${body.rows.length} rows, ${matched} matched to symbols)`,
+      summary: `Uploaded dividends ${upload.fileName} (${body.rows.length} rows, ${matched} matched)`,
     }
   );
 

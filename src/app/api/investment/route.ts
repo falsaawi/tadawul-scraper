@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import {
+  buildMappingIndex,
+  resolveSymbol,
+  type CandidateName,
+} from "@/lib/dividend-mapping";
 
 export const dynamic = "force-dynamic";
 
@@ -99,20 +104,11 @@ export async function GET() {
       : Promise.resolve([] as Awaited<ReturnType<typeof prisma.dividendPayment.findMany>>),
   ]);
 
-  // Aggregate dividends by resolved symbol for joining to Saudi holdings
-  type DivAgg = { total: number; count: number };
-  const divBySymbol = new Map<string, DivAgg>();
-  for (const d of dividends) {
-    if (!d.symbol) continue;
-    const cur = divBySymbol.get(d.symbol) ?? { total: 0, count: 0 };
-    cur.total += d.value;
-    cur.count += 1;
-    divBySymbol.set(d.symbol, cur);
-  }
-
-  // Build live price + company name lookup from latest scrape
+  // Build live price + company name lookup from latest scrape (also feeds
+  // the dividend name->symbol mapping).
   type Live = { price: number | null; pct: number | null; companyName: string };
   const priceMap = new Map<string, Live>();
+  const liveRecords: Array<{ symbol: string; companyName: string }> = [];
   if (lastSession) {
     const records = await prisma.stockRecord.findMany({
       where: { sessionId: lastSession.id },
@@ -135,14 +131,42 @@ export async function GET() {
       const unpadded = r.symbol.replace(/^0+/, "");
       if (unpadded && unpadded !== r.symbol && !priceMap.has(unpadded))
         priceMap.set(unpadded, live);
+      liveRecords.push({ symbol: r.symbol, companyName: r.companyName });
     }
   }
 
-  const profiles = await prisma.companyProfile.findMany({
-    select: { symbol: true, sector: true },
+  const profilesFull = await prisma.companyProfile.findMany({
+    select: { symbol: true, companyName: true, sector: true },
   });
   const sectorMap = new Map<string, string | null>();
-  for (const p of profiles) sectorMap.set(p.symbol, p.sector);
+  for (const p of profilesFull) sectorMap.set(p.symbol, p.sector);
+
+  // Re-resolve dividend symbols against the freshest mapping data so
+  // analysis improves when holdings or scrape data are updated without
+  // requiring a dividend re-upload.
+  const mappingCandidates: CandidateName[] = [
+    ...liveRecords.map((r) => ({ symbol: r.symbol, name: r.companyName })),
+    ...saudiStocks
+      .filter((s) => s.companyName)
+      .map((s) => ({ symbol: s.stockCode, name: s.companyName })),
+    ...profilesFull.map((p) => ({ symbol: p.symbol, name: p.companyName })),
+  ];
+  const mappingIndex = buildMappingIndex(mappingCandidates);
+  for (const d of dividends) {
+    const resolved = resolveSymbol(d.company, mappingIndex);
+    if (resolved) d.symbol = resolved;
+  }
+
+  // Aggregate dividends by resolved symbol for joining to Saudi holdings
+  type DivAgg = { total: number; count: number };
+  const divBySymbol = new Map<string, DivAgg>();
+  for (const d of dividends) {
+    if (!d.symbol) continue;
+    const cur = divBySymbol.get(d.symbol) ?? { total: 0, count: 0 };
+    cur.total += d.value;
+    cur.count += 1;
+    divBySymbol.set(d.symbol, cur);
+  }
 
   // ---- Aggregate Saudi stocks by stockCode (sum across brokers) ----
   type SaudiAgg = {

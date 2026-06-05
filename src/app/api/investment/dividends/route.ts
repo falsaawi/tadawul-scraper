@@ -77,8 +77,19 @@ export async function GET() {
   }
   const index = buildMappingIndex(candidates);
 
+  // Manual overrides win over everything else.
+  const overrides = new Map<string, string>();
+  for (const m of await prisma.dividendSymbolMap.findMany()) {
+    overrides.set(m.company, m.symbol);
+  }
+
   // Resolve each payment's symbol on the fly (keeps analysis fresh)
   for (const d of dividends) {
+    const override = overrides.get(d.company);
+    if (override) {
+      d.symbol = override;
+      continue;
+    }
     const resolved = resolveSymbol(d.company, index);
     if (resolved) d.symbol = resolved;
   }

@@ -52,6 +52,10 @@ export async function POST(request: NextRequest) {
   for (const p of profiles) candidates.push({ symbol: p.symbol, name: p.companyName });
 
   const index = buildMappingIndex(candidates);
+  const overrides = new Map<string, string>();
+  for (const m of await prisma.dividendSymbolMap.findMany()) {
+    overrides.set(m.company, m.symbol);
+  }
 
   const upload = await prisma.dividendUpload.create({
     data: {
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
     await prisma.dividendPayment.createMany({
       data: body.rows.map((r) => {
         const company = String(r.company ?? "");
-        const symbol = resolveSymbol(company, index);
+        const symbol = overrides.get(company) ?? resolveSymbol(company, index);
         if (symbol) matched++;
         return {
           uploadId: upload.id,

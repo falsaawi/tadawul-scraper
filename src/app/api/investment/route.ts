@@ -154,7 +154,16 @@ export async function GET() {
     ...profilesFull.map((p) => ({ symbol: p.symbol, name: p.companyName })),
   ];
   const mappingIndex = buildMappingIndex(mappingCandidates);
+  const divOverrides = new Map<string, string>();
+  for (const m of await prisma.dividendSymbolMap.findMany()) {
+    divOverrides.set(m.company, m.symbol);
+  }
   for (const d of dividends) {
+    const override = divOverrides.get(d.company);
+    if (override) {
+      d.symbol = override;
+      continue;
+    }
     const resolved = resolveSymbol(d.company, mappingIndex);
     if (resolved) d.symbol = resolved;
   }

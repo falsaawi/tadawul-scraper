@@ -267,6 +267,15 @@ model DividendUpload {
   @@index([uploadedAt])
 }
 
+model DividendSymbolMap {
+  id        String   @id @default(cuid())
+  company   String   @unique
+  symbol    String
+  updatedAt DateTime @updatedAt
+
+  @@index([symbol])
+}
+
 model DividendPayment {
   id              String         @id @default(cuid())
   uploadId        String

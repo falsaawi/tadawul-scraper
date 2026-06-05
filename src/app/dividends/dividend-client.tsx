@@ -11,6 +11,10 @@ import {
   Link2,
   Link2Off,
   Search,
+  Pencil,
+  Check,
+  X,
+  Loader2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -180,7 +184,7 @@ export function DividendClient() {
           <ChartsRow d={data} />
           <SeasonalityRow d={data} />
           <TopYieldersAndStatus d={data} />
-          <MappingTable companies={data.companies} summary={data.summary} />
+          <MappingTable companies={data.companies} summary={data.summary} onUpdated={load} />
           <RecentTable rows={data.recent} />
         </>
       )}
@@ -393,9 +397,54 @@ function TopYieldersAndStatus({ d }: { d: DividendData }) {
   );
 }
 
-function MappingTable({ companies, summary }: { companies: Company[]; summary: DividendData["summary"] }) {
+function MappingTable({
+  companies,
+  summary,
+  onUpdated,
+}: {
+  companies: Company[];
+  summary: DividendData["summary"];
+  onUpdated: () => void;
+}) {
   const [search, setSearch] = useState("");
   const [onlyUnmatched, setOnlyUnmatched] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function startEdit(company: string, symbol: string | null) {
+    setEditing(company);
+    setEditVal(symbol ?? "");
+    setError(null);
+  }
+  function cancel() {
+    setEditing(null);
+    setEditVal("");
+    setError(null);
+  }
+  async function save(company: string) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/investment/dividends/mapping", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ company, symbol: editVal.trim() }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      cancel();
+      onUpdated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -449,6 +498,11 @@ function MappingTable({ companies, summary }: { companies: Company[]; summary: D
         </div>
       }
     >
+      {error && (
+        <div className="mb-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5">
+          {error}
+        </div>
+      )}
       <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="text-muted-foreground sticky top-0 bg-card">
@@ -458,30 +512,78 @@ function MappingTable({ companies, summary }: { companies: Company[]; summary: D
               <th className="px-2 py-1.5 text-left font-medium">Tadawul name</th>
               <th className="px-2 py-1.5 text-right font-medium">Payments</th>
               <th className="px-2 py-1.5 text-right font-medium">Total</th>
+              <th className="px-2 w-16"></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => (
-              <tr key={c.company} className="border-t border-border/40 hover:bg-accent/50">
-                <td className="px-2 py-1.5 truncate max-w-[220px]">{c.company}</td>
-                <td className="px-2 py-1.5">
-                  {c.symbol ? (
-                    <span className="inline-flex items-center gap-1 font-mono font-medium text-emerald-400">
-                      <Link2 className="h-3 w-3" />{c.symbol}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-yellow-400/80">
-                      <Link2Off className="h-3 w-3" />unlinked
-                    </span>
-                  )}
-                </td>
-                <td className="px-2 py-1.5 truncate max-w-[200px] text-muted-foreground">{c.companyName ?? "—"}</td>
-                <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{c.count}</td>
-                <td className="px-2 py-1.5 text-right font-mono font-medium">{SAR2.format(c.value)}</td>
-              </tr>
-            ))}
+            {filtered.map((c) => {
+              const isEditing = editing === c.company;
+              return (
+                <tr key={c.company} className="border-t border-border/40 hover:bg-accent/50">
+                  <td className="px-2 py-1.5 truncate max-w-[220px]">{c.company}</td>
+                  <td className="px-2 py-1.5">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editVal}
+                        autoFocus
+                        disabled={saving}
+                        onChange={(e) => setEditVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") save(c.company);
+                          if (e.key === "Escape") cancel();
+                        }}
+                        placeholder="e.g. 1120"
+                        className="w-24 px-1.5 py-0.5 font-mono bg-input border border-primary/50 rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    ) : c.symbol ? (
+                      <span className="inline-flex items-center gap-1 font-mono font-medium text-emerald-400">
+                        <Link2 className="h-3 w-3" />{c.symbol}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-yellow-400/80">
+                        <Link2Off className="h-3 w-3" />unlinked
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 truncate max-w-[200px] text-muted-foreground">{c.companyName ?? "—"}</td>
+                  <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{c.count}</td>
+                  <td className="px-2 py-1.5 text-right font-mono font-medium">{SAR2.format(c.value)}</td>
+                  <td className="px-2 py-1.5 text-right">
+                    {isEditing ? (
+                      <span className="inline-flex items-center gap-1">
+                        <button
+                          onClick={() => save(c.company)}
+                          disabled={saving}
+                          title="Save (Enter)"
+                          className="p-1 rounded text-green-400 hover:bg-green-500/10 disabled:opacity-50"
+                        >
+                          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        </button>
+                        <button
+                          onClick={cancel}
+                          disabled={saving}
+                          title="Cancel (Esc)"
+                          className="p-1 rounded text-muted-foreground hover:bg-accent disabled:opacity-50"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => startEdit(c.company, c.symbol)}
+                        title="Edit symbol"
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
-              <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">No companies match</td></tr>
+              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">No companies match</td></tr>
             )}
           </tbody>
         </table>

@@ -43,6 +43,8 @@ interface Company {
 
 interface DividendData {
   upload: { id: string; fileName: string; uploadedAt: string; rowCount: number } | null;
+  filters: { year: number | null; month: number | null };
+  availableYears: number[];
   summary: {
     lifetime: number;
     yearToDate: number;
@@ -116,15 +118,26 @@ function fmtDate(d: string | null | undefined): string {
   }
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export function DividendClient() {
   const [data, setData] = useState<DividendData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
+  const [year, setYear] = useState<string>("all");
+  const [month, setMonth] = useState<string>("all");
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/investment/dividends", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (year !== "all") params.set("year", year);
+      if (month !== "all") params.set("month", month);
+      const qs = params.toString();
+      const res = await fetch(`/api/investment/dividends${qs ? "?" + qs : ""}`, { cache: "no-store" });
       if (res.ok) setData((await res.json()) as DividendData);
     } finally {
       setLoading(false);
@@ -133,13 +146,25 @@ export function DividendClient() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, month]);
+
+  const filterActive = year !== "all" || month !== "all";
+  const yearLabel = year === "all" ? "All years" : year;
+  const monthLabel = month === "all" ? "All months" : MONTH_NAMES[parseInt(month) - 1];
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-foreground">My Dividend</h1>
+          <h1 className="text-xl font-bold text-foreground inline-flex items-center gap-2">
+            My Dividend
+            {filterActive && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
+                {monthLabel} · {yearLabel}
+              </span>
+            )}
+          </h1>
           <p className="text-muted-foreground text-xs mt-0.5">
             Historical dividend income, linked to Tadawul stock codes
             {data?.upload && (
@@ -151,7 +176,42 @@ export function DividendClient() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-card">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              disabled={loading}
+              className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="all">All years</option>
+              {data?.availableYears?.map((y) => (
+                <option key={y} value={String(y)}>{y}</option>
+              ))}
+            </select>
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              disabled={loading}
+              className="bg-transparent text-xs font-medium text-foreground focus:outline-none cursor-pointer border-l border-border pl-2"
+            >
+              <option value="all">All months</option>
+              {MONTH_NAMES.map((m, i) => (
+                <option key={m} value={String(i + 1)}>{m}</option>
+              ))}
+            </select>
+            {filterActive && (
+              <button
+                onClick={() => { setYear("all"); setMonth("all"); }}
+                disabled={loading}
+                title="Clear filters"
+                className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent ml-1"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
           <button
             onClick={load}
             disabled={loading}
@@ -183,7 +243,6 @@ export function DividendClient() {
           <SummaryCards d={data} />
           <ChartsRow d={data} />
           <SeasonalityRow d={data} />
-          <TopYieldersAndStatus d={data} />
           <MappingTable companies={data.companies} summary={data.summary} onUpdated={load} />
           <RecentTable rows={data.recent} />
         </>
@@ -330,68 +389,6 @@ function SeasonalityRow({ d }: { d: DividendData }) {
             <Line type="monotone" dataKey="count" stroke="#a855f7" strokeWidth={2} dot={{ r: 3 }} />
           </LineChart>
         </ResponsiveContainer>
-      </Panel>
-    </div>
-  );
-}
-
-function TopYieldersAndStatus({ d }: { d: DividendData }) {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <Panel title="Top yielders (lifetime dividends vs cost basis)">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1 text-left font-medium">Symbol</th>
-                <th className="px-2 py-1 text-left font-medium">Company</th>
-                <th className="px-2 py-1 text-right font-medium">Dividends</th>
-                <th className="px-2 py-1 text-right font-medium">Cost</th>
-                <th className="px-2 py-1 text-right font-medium">Yield/cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.topYielders.length === 0 && (
-                <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">No matched holdings with cost basis</td></tr>
-              )}
-              {d.topYielders.map((c) => (
-                <tr key={c.symbol} className="border-t border-border/40">
-                  <td className="px-2 py-1.5 font-mono font-medium">{c.symbol}</td>
-                  <td className="px-2 py-1.5 truncate max-w-[160px]">{c.companyName ?? c.company}</td>
-                  <td className="px-2 py-1.5 text-right font-mono">{SAR2.format(c.value)}</td>
-                  <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{c.cost != null ? SAR2.format(c.cost) : "—"}</td>
-                  <td className="px-2 py-1.5 text-right font-mono font-semibold text-emerald-400">{c.yieldOnCostPct != null ? PCT(c.yieldOnCostPct) : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-      <Panel title="By status & type">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Status</div>
-            <div className="space-y-1.5">
-              {d.byStatus.map((s) => (
-                <div key={s.status} className="flex items-center justify-between text-xs">
-                  <span className="truncate">{s.status}</span>
-                  <span className="font-mono font-medium">{SAR.format(s.value)} <span className="text-[10px] text-muted-foreground">×{s.count}</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Type</div>
-            <div className="space-y-1.5">
-              {d.byType.map((t) => (
-                <div key={t.type} className="flex items-center justify-between text-xs">
-                  <span className="truncate">{t.type}</span>
-                  <span className="font-mono font-medium">{SAR.format(t.value)} <span className="text-[10px] text-muted-foreground">×{t.count}</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </Panel>
     </div>
   );

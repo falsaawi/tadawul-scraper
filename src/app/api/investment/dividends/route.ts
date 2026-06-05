@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   buildMappingIndex,
@@ -14,7 +14,12 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const filterYearRaw = searchParams.get("year");
+  const filterMonthRaw = searchParams.get("month");
+  const filterYear = filterYearRaw && filterYearRaw !== "all" ? parseInt(filterYearRaw) : null;
+  const filterMonth = filterMonthRaw && filterMonthRaw !== "all" ? parseInt(filterMonthRaw) : null;
   const upload = await prisma.dividendUpload.findFirst({
     orderBy: { uploadedAt: "desc" },
   });
@@ -23,7 +28,7 @@ export async function GET() {
     return NextResponse.json({ upload: null });
   }
 
-  const dividends = await prisma.dividendPayment.findMany({
+  const allDividends = await prisma.dividendPayment.findMany({
     where: { uploadId: upload.id },
     orderBy: { distDate: "desc" },
   });
@@ -84,7 +89,7 @@ export async function GET() {
   }
 
   // Resolve each payment's symbol on the fly (keeps analysis fresh)
-  for (const d of dividends) {
+  for (const d of allDividends) {
     const override = overrides.get(d.company);
     if (override) {
       d.symbol = override;
@@ -93,6 +98,23 @@ export async function GET() {
     const resolved = resolveSymbol(d.company, index);
     if (resolved) d.symbol = resolved;
   }
+
+  // Build the list of years available for the year filter from the
+  // unfiltered set so users can always navigate to a different year.
+  const availableYearsSet = new Set<number>();
+  for (const d of allDividends) {
+    if (d.distDate) availableYearsSet.add(d.distDate.getUTCFullYear());
+  }
+  const availableYears = Array.from(availableYearsSet).sort((a, b) => b - a);
+
+  // Apply page-wide filters (year / month) before aggregation.
+  const dividends = allDividends.filter((d) => {
+    if (filterYear == null && filterMonth == null) return true;
+    if (!d.distDate) return false;
+    if (filterYear != null && d.distDate.getUTCFullYear() !== filterYear) return false;
+    if (filterMonth != null && d.distDate.getUTCMonth() + 1 !== filterMonth) return false;
+    return true;
+  });
 
   // ---- Aggregations ----
   const now = new Date();
@@ -209,6 +231,11 @@ export async function GET() {
       uploadedAt: upload.uploadedAt,
       rowCount: upload.rowCount,
     },
+    filters: {
+      year: filterYear,
+      month: filterMonth,
+    },
+    availableYears,
     summary: {
       lifetime,
       yearToDate,

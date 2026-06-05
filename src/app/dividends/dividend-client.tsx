@@ -39,6 +39,7 @@ interface Company {
   count: number;
   cost: number | null;
   yieldOnCostPct: number | null;
+  history: Array<{ year: number; value: number }>;
 }
 
 interface DividendData {
@@ -393,6 +394,64 @@ function SeasonalityRow({ d }: { d: DividendData }) {
   );
 }
 
+function HistoryPopover({
+  history,
+  title,
+  anchor,
+}: {
+  history: Array<{ year: number; value: number }>;
+  title: string;
+  anchor: { x: number; y: number };
+}) {
+  const total = history.reduce((s, p) => s + p.value, 0);
+  const last = history[history.length - 1];
+  const width = 280;
+  // Keep the popover inside the viewport.
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
+  const left = Math.min(Math.max(8, anchor.x - width), vw - width - 8);
+  return (
+    <div
+      style={{ position: "fixed", top: anchor.y + 6, left, width }}
+      className="z-50 bg-[#0f172a] border border-border rounded-lg shadow-2xl p-3 pointer-events-none"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[11px] text-foreground font-semibold truncate">{title}</div>
+        <div className="text-[9px] text-muted-foreground">{history.length}y history</div>
+      </div>
+      <div className="text-[10px] text-muted-foreground mb-2">
+        Lifetime <span className="font-mono text-foreground font-medium">{SAR.format(total)}</span>
+        {last && (
+          <>
+            {" · "}
+            {last.year} <span className="font-mono text-foreground font-medium">{SAR.format(last.value)}</span>
+          </>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={110}>
+        <LineChart data={history} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <XAxis
+            dataKey="year"
+            tick={{ fontSize: 9, fill: "#94a3b8" }}
+            interval="preserveStartEnd"
+            tickLine={false}
+            axisLine={{ stroke: "#1e293b" }}
+          />
+          <YAxis hide />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke="#10b981"
+            strokeWidth={2}
+            dot={{ r: 2, fill: "#10b981" }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function MappingTable({
   companies,
   summary,
@@ -408,6 +467,7 @@ function MappingTable({
   const [editVal, setEditVal] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hover, setHover] = useState<{ company: Company; x: number; y: number } | null>(null);
 
   function startEdit(company: string, symbol: string | null) {
     setEditing(company);
@@ -507,7 +567,11 @@ function MappingTable({
               <th className="px-2 py-1.5 text-left font-medium">Symbol</th>
               <th className="px-2 py-1.5 text-left font-medium">Tadawul name</th>
               <th className="px-2 py-1.5 text-right font-medium">Payments</th>
-              <th className="px-2 py-1.5 text-right font-medium">Total</th>
+              <th className="px-2 py-1.5 text-right font-medium" title="Hover for yearly history">
+                Total <span className="text-muted-foreground/60">↗</span>
+              </th>
+              <th className="px-2 py-1.5 text-right font-medium">Cost</th>
+              <th className="px-2 py-1.5 text-right font-medium">Div / cost</th>
               <th className="px-2 w-16"></th>
             </tr>
           </thead>
@@ -544,7 +608,25 @@ function MappingTable({
                   </td>
                   <td className="px-2 py-1.5 truncate max-w-[200px] text-muted-foreground">{c.companyName ?? "—"}</td>
                   <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{c.count}</td>
-                  <td className="px-2 py-1.5 text-right font-mono font-medium">{SAR2.format(c.value)}</td>
+                  <td
+                    className="px-2 py-1.5 text-right font-mono font-medium"
+                    onMouseEnter={(e) => {
+                      if (c.history.length === 0) return;
+                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setHover({ company: c, x: r.right, y: r.bottom });
+                    }}
+                    onMouseLeave={() => setHover(null)}
+                  >
+                    <span className={c.history.length > 0 ? "cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2" : ""}>
+                      {SAR2.format(c.value)}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">
+                    {c.cost != null ? SAR2.format(c.cost) : <span title="No matching Saudi holding cost basis">—</span>}
+                  </td>
+                  <td className={`px-2 py-1.5 text-right font-mono ${c.yieldOnCostPct != null ? "text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                    {c.yieldOnCostPct != null ? PCT(c.yieldOnCostPct) : "—"}
+                  </td>
                   <td className="px-2 py-1.5 text-right">
                     {isEditing ? (
                       <span className="inline-flex items-center gap-1">
@@ -579,11 +661,18 @@ function MappingTable({
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">No companies match</td></tr>
+              <tr><td colSpan={8} className="px-2 py-6 text-center text-muted-foreground">No companies match</td></tr>
             )}
           </tbody>
         </table>
       </div>
+      {hover && (
+        <HistoryPopover
+          history={hover.company.history}
+          title={hover.company.companyName ?? hover.company.company}
+          anchor={{ x: hover.x, y: hover.y }}
+        />
+      )}
     </Panel>
   );
 }

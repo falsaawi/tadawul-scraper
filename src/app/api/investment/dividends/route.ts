@@ -116,6 +116,18 @@ export async function GET(request: NextRequest) {
     return true;
   });
 
+  // Per-company yearly history (unfiltered) — fuels the sparkline popover in
+  // the mapping table, so the trend stays visible even when the page is
+  // filtered to a single year/month.
+  const companyByYear = new Map<string, Map<number, number>>();
+  for (const d of allDividends) {
+    if (!d.distDate) continue;
+    const y = d.distDate.getUTCFullYear();
+    const yearMap = companyByYear.get(d.company) ?? new Map<number, number>();
+    yearMap.set(y, (yearMap.get(y) ?? 0) + d.value);
+    companyByYear.set(d.company, yearMap);
+  }
+
   // ---- Aggregations ----
   const now = new Date();
   const thisYear = now.getUTCFullYear();
@@ -210,6 +222,10 @@ export async function GET(request: NextRequest) {
       const cost = v.symbol ? holdingCostBySymbol.get(v.symbol) ?? null : null;
       const yieldOnCostPct =
         cost != null && cost > 0 ? (v.value / cost) * 100 : null;
+      const yearMap = companyByYear.get(company) ?? new Map<number, number>();
+      const history = Array.from(yearMap.entries())
+        .map(([year, value]) => ({ year, value }))
+        .sort((a, b) => a.year - b.year);
       return {
         company,
         symbol: v.symbol,
@@ -218,6 +234,7 @@ export async function GET(request: NextRequest) {
         count: v.count,
         cost,
         yieldOnCostPct,
+        history,
       };
     })
     .sort((a, b) => b.value - a.value);

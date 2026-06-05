@@ -6,6 +6,7 @@ import {
   resolveSymbol,
   type CandidateName,
 } from "@/lib/dividend-mapping";
+import { SAUDI_NAME_DICTIONARY } from "@/lib/saudi-name-dictionary";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No dividend rows parsed" }, { status: 400 });
   }
 
-  const candidates: CandidateName[] = [];
+  const candidates: CandidateName[] = [...SAUDI_NAME_DICTIONARY];
 
   const lastSession = await prisma.scrapeSession.findFirst({
     where: { status: "completed" },

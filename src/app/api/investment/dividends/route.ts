@@ -5,6 +5,7 @@ import {
   resolveSymbol,
   type CandidateName,
 } from "@/lib/dividend-mapping";
+import { SAUDI_NAME_DICTIONARY } from "@/lib/saudi-name-dictionary";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ export async function GET() {
   });
 
   // ---- Build the name -> symbol mapping from all sources we have ----
-  const candidates: CandidateName[] = [];
+  // Curated Arabic dictionary first so it wins exact matches against the
+  // broker's Arabic names (the scraper only stores English names).
+  const candidates: CandidateName[] = [...SAUDI_NAME_DICTIONARY];
   const lastSession = await prisma.scrapeSession.findFirst({
     where: { status: "completed" },
     orderBy: { startedAt: "desc" },

@@ -5,6 +5,7 @@ import {
   resolveSymbol,
   type CandidateName,
 } from "@/lib/dividend-mapping";
+import { SAUDI_NAME_DICTIONARY } from "@/lib/saudi-name-dictionary";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,7 @@ export async function GET() {
   // analysis improves when holdings or scrape data are updated without
   // requiring a dividend re-upload.
   const mappingCandidates: CandidateName[] = [
+    ...SAUDI_NAME_DICTIONARY,
     ...liveRecords.map((r) => ({ symbol: r.symbol, name: r.companyName })),
     ...saudiStocks
       .filter((s) => s.companyName)

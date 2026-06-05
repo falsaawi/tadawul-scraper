@@ -61,7 +61,40 @@ interface SaudiStock {
   priceSource: "live" | "manual" | "none";
   pnl: number | null;
   pnlPct: number | null;
+  totalDividend: number;
+  dividendCount: number;
+  dividendYieldPct: number | null;
+  totalReturnPct: number | null;
   brokers: BrokerSlice[];
+}
+
+interface DividendAnalysis {
+  upload: { id: string; fileName: string; uploadedAt: string; rowCount: number } | null;
+  lifetime: number;
+  ytd: number;
+  lastYear: number;
+  last30Days: number;
+  count: number;
+  matched: number;
+  distinctCompanies: number;
+  byYear: Array<{ year: number; value: number; count: number }>;
+  topCompanies: Array<{ company: string; symbol: string | null; value: number; count: number }>;
+  topYielders: Array<{
+    symbol: string;
+    companyName: string | null;
+    totalDividend: number;
+    totalCost: number | null;
+    dividendYieldPct: number | null;
+  }>;
+  recent: Array<{
+    id: string;
+    company: string;
+    symbol: string | null;
+    value: number;
+    distDate: string | null;
+    status: string | null;
+    type: string | null;
+  }>;
 }
 
 interface SaudiFund {
@@ -166,6 +199,7 @@ interface ApiResponse {
   usaStocks: UsaStock[];
   gulfStocks: GulfStock[];
   cash: CashRow[];
+  dividends: DividendAnalysis;
 }
 
 const SAR = new Intl.NumberFormat("en-US", {
@@ -1194,6 +1228,8 @@ function SaudiStocksTab({
               <Th align="right" onClick={() => head("liveValue")}>Live value</Th>
               <Th align="right" onClick={() => head("pnl")}>P/L</Th>
               <Th align="right" onClick={() => head("pnlPct")}>P/L %</Th>
+              <Th align="right" onClick={() => head("totalDividend")}>Dividends</Th>
+              <Th align="right" onClick={() => head("dividendYieldPct")}>Div %</Th>
               <th className="px-2 w-20"></th>
             </tr>
           </thead>
@@ -1334,6 +1370,15 @@ function SaudiStocksTab({
                     <td className={`px-3 py-2 text-right font-mono ${r.pnlPct == null ? "text-muted-foreground" : pnlPos ? "text-green-400" : "text-red-400"}`}>
                       {r.pnlPct != null ? PCT(r.pnlPct) : "—"}
                     </td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.totalDividend > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {r.totalDividend > 0 ? SAR2.format(r.totalDividend) : "—"}
+                      {r.dividendCount > 0 && (
+                        <span className="ml-1 text-[9px] text-muted-foreground">×{r.dividendCount}</span>
+                      )}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono ${r.dividendYieldPct != null && r.dividendYieldPct > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {r.dividendYieldPct != null && r.dividendYieldPct > 0 ? PCT(r.dividendYieldPct) : "—"}
+                    </td>
                     <td className="px-2 py-2 text-right">
                       <EditCell
                         editable={!!onlyBroker}
@@ -1433,7 +1478,7 @@ function SaudiStocksTab({
                         <td colSpan={3} className="px-3 py-1.5 text-right font-mono text-[11px]">
                           {b.totalCost != null ? SAR2.format(b.totalCost) : "—"}
                         </td>
-                        <td colSpan={3} className="px-3 py-1.5 text-right font-mono text-[11px]">
+                        <td colSpan={5} className="px-3 py-1.5 text-right font-mono text-[11px]">
                           {b.brokerCurrentValue != null ? SAR2.format(b.brokerCurrentValue) : "—"}
                         </td>
                         <td className="px-2 py-1.5 text-right">
@@ -1453,7 +1498,7 @@ function SaudiStocksTab({
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">No matches</td></tr>
+              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">No matches</td></tr>
             )}
           </tbody>
         </table>

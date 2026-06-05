@@ -100,7 +100,7 @@ export function Header() {
               href="/portfolio"
               className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
-              My Portfolio
+              My Investment
             </Link>
           </nav>
         </div>

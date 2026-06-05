@@ -15,6 +15,9 @@ import {
   Check,
   X,
   Loader2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -394,6 +397,42 @@ function SeasonalityRow({ d }: { d: DividendData }) {
   );
 }
 
+function SortTh<K extends string>({
+  label,
+  k,
+  sortKey,
+  sortDir,
+  onSort,
+  align = "left",
+  title,
+}: {
+  label: string;
+  k: K;
+  sortKey: K;
+  sortDir: "asc" | "desc";
+  onSort: (k: K) => void;
+  align?: "left" | "right";
+  title?: string;
+}) {
+  const active = sortKey === k;
+  return (
+    <th
+      onClick={() => onSort(k)}
+      title={title}
+      className={`px-2 py-1.5 font-medium cursor-pointer select-none hover:text-foreground ${align === "right" ? "text-right" : "text-left"}`}
+    >
+      <span className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
+        {label}
+        {active ? (
+          sortDir === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-30" />
+        )}
+      </span>
+    </th>
+  );
+}
+
 function HistoryPopover({
   history,
   title,
@@ -463,6 +502,12 @@ function MappingTable({
 }) {
   const [search, setSearch] = useState("");
   const [onlyUnmatched, setOnlyUnmatched] = useState(false);
+  const [sortKey, setSortKey] = useState<"company" | "symbol" | "companyName" | "count" | "value" | "cost" | "yieldOnCostPct">("value");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  function head(k: typeof sortKey) {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("desc"); }
+  }
   const [editing, setEditing] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
   const [saving, setSaving] = useState(false);
@@ -504,7 +549,7 @@ function MappingTable({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return companies.filter((c) => {
+    const list = companies.filter((c) => {
       if (onlyUnmatched && c.symbol) return false;
       if (!q) return true;
       return (
@@ -513,7 +558,19 @@ function MappingTable({
         (c.companyName ?? "").toLowerCase().includes(q)
       );
     });
-  }, [companies, search, onlyUnmatched]);
+    return [...list].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === "string" || typeof bv === "string") {
+        const as = (av as string | null) ?? "";
+        const bs = (bv as string | null) ?? "";
+        return sortDir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
+      }
+      const an = (av as number | null) ?? -Infinity;
+      const bn = (bv as number | null) ?? -Infinity;
+      return sortDir === "asc" ? an - bn : bn - an;
+    });
+  }, [companies, search, onlyUnmatched, sortKey, sortDir]);
 
   return (
     <Panel
@@ -563,15 +620,13 @@ function MappingTable({
         <table className="w-full text-xs">
           <thead className="text-muted-foreground sticky top-0 bg-card">
             <tr>
-              <th className="px-2 py-1.5 text-left font-medium">Broker name</th>
-              <th className="px-2 py-1.5 text-left font-medium">Symbol</th>
-              <th className="px-2 py-1.5 text-left font-medium">Tadawul name</th>
-              <th className="px-2 py-1.5 text-right font-medium">Payments</th>
-              <th className="px-2 py-1.5 text-right font-medium" title="Hover for yearly history">
-                Total <span className="text-muted-foreground/60">↗</span>
-              </th>
-              <th className="px-2 py-1.5 text-right font-medium">Cost</th>
-              <th className="px-2 py-1.5 text-right font-medium">Div / cost</th>
+              <SortTh label="Broker name" k="company" sortKey={sortKey} sortDir={sortDir} onSort={head} />
+              <SortTh label="Symbol" k="symbol" sortKey={sortKey} sortDir={sortDir} onSort={head} />
+              <SortTh label="Tadawul name" k="companyName" sortKey={sortKey} sortDir={sortDir} onSort={head} />
+              <SortTh label="Payments" k="count" align="right" sortKey={sortKey} sortDir={sortDir} onSort={head} />
+              <SortTh label="Total ↗" k="value" align="right" sortKey={sortKey} sortDir={sortDir} onSort={head} title="Hover a row's total for yearly history" />
+              <SortTh label="Cost" k="cost" align="right" sortKey={sortKey} sortDir={sortDir} onSort={head} />
+              <SortTh label="Div / cost" k="yieldOnCostPct" align="right" sortKey={sortKey} sortDir={sortDir} onSort={head} />
               <th className="px-2 w-16"></th>
             </tr>
           </thead>

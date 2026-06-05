@@ -244,7 +244,6 @@ export function DividendClient() {
           <ChartsRow d={data} />
           <SeasonalityRow d={data} />
           <MappingTable companies={data.companies} summary={data.summary} onUpdated={load} />
-          <RecentTable rows={data.recent} />
         </>
       )}
 
@@ -589,40 +588,3 @@ function MappingTable({
   );
 }
 
-function RecentTable({ rows }: { rows: DividendData["recent"] }) {
-  return (
-    <Panel title="Most recent payments">
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="text-muted-foreground">
-            <tr>
-              <th className="px-2 py-1 text-left font-medium">Date</th>
-              <th className="px-2 py-1 text-left font-medium">Company</th>
-              <th className="px-2 py-1 text-left font-medium">Symbol</th>
-              <th className="px-2 py-1 text-right font-medium">Per share</th>
-              <th className="px-2 py-1 text-right font-medium">Units</th>
-              <th className="px-2 py-1 text-left font-medium">Status</th>
-              <th className="px-2 py-1 text-right font-medium">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((d) => (
-              <tr key={d.id} className="border-t border-border/40 hover:bg-accent/50">
-                <td className="px-2 py-1.5 font-mono text-muted-foreground">{fmtDate(d.distDate)}</td>
-                <td className="px-2 py-1.5 truncate max-w-[200px]">{d.company}</td>
-                <td className="px-2 py-1.5 font-mono">{d.symbol ?? "—"}</td>
-                <td className="px-2 py-1.5 text-right font-mono">{d.perShare != null ? d.perShare.toFixed(2) : "—"}</td>
-                <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{d.units != null ? NUM.format(d.units) : "—"}</td>
-                <td className="px-2 py-1.5 text-muted-foreground">{d.status ?? "—"}</td>
-                <td className="px-2 py-1.5 text-right font-mono font-semibold">{SAR2.format(d.value)}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={7} className="px-2 py-6 text-center text-muted-foreground">No payments</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
-  );
-}

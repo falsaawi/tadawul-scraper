@@ -295,3 +295,124 @@ model DividendPayment {
   @@index([symbol])
   @@index([distDate])
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// WHOOP integration
+// ──────────────────────────────────────────────────────────────────────────
+
+// OAuth tokens + connection metadata. Single-user app, so a single singleton
+// row keyed by a fixed id (WHOOP_CONNECTION_ID = "default" in code).
+model WhoopConnection {
+  id           String    @id
+  whoopUserId  Int?
+  email        String?
+  firstName    String?
+  lastName     String?
+  accessToken  String
+  refreshToken String?
+  scope        String?
+  expiresAt    DateTime
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model WhoopSyncLog {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  trigger    String    @default("manual") // manual | cron
+  status     String    @default("running") // running | completed | failed
+  error      String?
+  counts     Json? // { recovery, sleep, cycles, workouts }
+
+  @@index([startedAt])
+}
+
+// One physiological cycle (a WHOOP "day"). id is an int64 in the WHOOP API.
+model WhoopCycle {
+  cycleId          BigInt    @id
+  start            DateTime
+  end              DateTime?
+  timezoneOffset   String?
+  scoreState       String?
+  strain           Float?
+  kilojoule        Float?
+  averageHeartRate Int?
+  maxHeartRate     Int?
+  raw              Json
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([start])
+}
+
+// Recovery is keyed by the cycle it belongs to.
+model WhoopRecovery {
+  cycleId          BigInt   @id
+  sleepId          String?
+  scoreState       String?
+  userCalibrating  Boolean?
+  recoveryScore    Float?
+  restingHeartRate Float?
+  hrvRmssdMilli    Float?
+  spo2Percentage   Float?
+  skinTempCelsius  Float?
+  whoopCreatedAt   DateTime?
+  raw              Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([whoopCreatedAt])
+}
+
+// Sleep activities. id is a UUID in the WHOOP v2 API.
+model WhoopSleep {
+  id                       String   @id
+  cycleId                  BigInt?
+  start                    DateTime
+  end                      DateTime
+  timezoneOffset           String?
+  nap                      Boolean  @default(false)
+  scoreState               String?
+  sleepPerformancePct      Float?
+  sleepConsistencyPct      Float?
+  sleepEfficiencyPct       Float?
+  respiratoryRate          Float?
+  totalInBedTimeMilli      BigInt?
+  totalAwakeTimeMilli      BigInt?
+  totalLightSleepTimeMilli BigInt?
+  totalSwSleepTimeMilli    BigInt?
+  totalRemSleepTimeMilli   BigInt?
+  sleepCycleCount          Int?
+  disturbanceCount         Int?
+  raw                      Json
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([start])
+}
+
+// Workout activities. id is a UUID in the WHOOP v2 API.
+model WhoopWorkout {
+  id               String   @id
+  start            DateTime
+  end              DateTime
+  timezoneOffset   String?
+  sportName        String?
+  sportId          Int?
+  scoreState       String?
+  strain           Float?
+  averageHeartRate Int?
+  maxHeartRate     Int?
+  kilojoule        Float?
+  percentRecorded  Float?
+  distanceMeter    Float?
+  altitudeGainMeter Float?
+  zoneDurations    Json?
+  raw              Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([start])
+}

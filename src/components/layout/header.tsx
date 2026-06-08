@@ -102,6 +102,12 @@ export function Header() {
             >
               My Investment
             </Link>
+            <Link
+              href="/whoop"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              WHOOP
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">

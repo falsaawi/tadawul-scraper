@@ -20,6 +20,46 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## WHOOP integration
+
+Pull your own [WHOOP](https://www.whoop.com) recovery, sleep, strain and workout
+data into the app via the WHOOP v2 API.
+
+### Setup
+
+1. Create an app in the [WHOOP Developer Dashboard](https://developer.whoop.com/dashboard).
+2. Add `<your-app-origin>/api/whoop/callback` as a **Redirect URL** (e.g.
+   `http://localhost:3000/api/whoop/callback` for local dev and your production
+   URL for Vercel).
+3. Copy the Client ID / Secret into your environment:
+
+   ```bash
+   WHOOP_CLIENT_ID="..."
+   WHOOP_CLIENT_SECRET="..."
+   # Optional — pin the redirect URI (must match the dashboard exactly):
+   WHOOP_REDIRECT_URI="https://your-app.vercel.app/api/whoop/callback"
+   ```
+
+4. Run `npm run db:push` (or deploy — `build` runs it) to create the WHOOP tables.
+5. Open **/whoop**, click **Connect WHOOP**, authorize, then **Sync now**.
+
+OAuth uses the authorization-code flow with the `offline` scope, so a refresh
+token is stored and tokens are refreshed automatically. A Vercel cron job
+(`/api/cron/whoop`, every 6 hours, protected by `CRON_SECRET`) keeps the data
+fresh; each sync is incremental and idempotent.
+
+### Endpoints
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/whoop/connect` | Start the OAuth flow |
+| `GET /api/whoop/callback` | OAuth redirect target (token exchange) |
+| `GET /api/whoop/status` | Connection + last-sync status |
+| `POST /api/whoop/sync` | Manual incremental sync |
+| `GET /api/whoop/data?days=30` | Stored data for the dashboard |
+| `POST /api/whoop/disconnect` | Remove stored tokens |
+| `GET /api/cron/whoop` | Scheduled sync (Bearer `CRON_SECRET`) |
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

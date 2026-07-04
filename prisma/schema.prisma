@@ -172,6 +172,57 @@ model InvestmentUpload {
   @@index([uploadedAt])
 }
 
+model ExpenseStatement {
+  id             String    @id @default(cuid())
+  uploadedAt     DateTime  @default(now())
+  fileName       String
+  bank           String    // 'SAB' | 'AlRajhi' | 'Unknown'
+  cardName       String?
+  cardNumber     String?   // masked last-4 or similar
+  statementMonth String    // 'YYYY-MM' derived from statement period
+  statementLabel String?   // e.g. 'JUNE, 2026' or statement date
+  // Authoritative summary figures pulled from the statement
+  totalSpend     Float?
+  totalDebits    Float?
+  totalCredits   Float?
+  fees           Float?
+  vat            Float?
+  openingBalance Float?
+  closingBalance Float?
+  minimumDue     Float?
+  totalDue       Float?
+  dueDate        String?
+  parsedCount    Int       @default(0)
+  parsedSum      Float     @default(0)
+
+  transactions ExpenseTransaction[]
+
+  // One statement per bank+card+month; re-upload replaces it.
+  @@unique([bank, cardNumber, statementMonth])
+  @@index([statementMonth])
+  @@index([bank])
+}
+
+model ExpenseTransaction {
+  id          String           @id @default(cuid())
+  statementId String
+  statement   ExpenseStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  txnDate     DateTime?
+  postDate    DateTime?
+  merchant    String
+  city        String?
+  rawDesc     String?
+  amount      Float            // billed amount in SAR
+  currency    String?          // original currency if foreign
+  foreignAmount Float?
+  category    String           // derived category
+  isCredit    Boolean          @default(false)
+
+  @@index([statementId])
+  @@index([category])
+  @@index([txnDate])
+}
+
 model InvestmentCash {
   id          String           @id @default(cuid())
   uploadId    String

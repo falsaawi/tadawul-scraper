@@ -5,7 +5,7 @@
 // Node (text extraction only — no canvas). Column geometry and reconciliation
 // were validated against real statements.
 
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocumentProxy } from "unpdf";
 
 export interface ParsedTxn {
   txnDate: string | null; // ISO yyyy-mm-dd
@@ -56,7 +56,9 @@ interface Page {
 // ---------- extraction ----------
 
 async function extractPages(buffer: Uint8Array): Promise<Page[]> {
-  const doc = await getDocument({ data: buffer, useSystemFonts: true, isEvalSupported: false }).promise;
+  // unpdf ships a serverless-safe pdfjs build (no DOM/worker/Node-version
+  // requirements) and returns the same document proxy API.
+  const doc = await getDocumentProxy(buffer);
   const pages: Page[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);

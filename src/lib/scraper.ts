@@ -102,7 +102,22 @@ function parse52WeekRange(text: string, currentPrice: number | null): { low: num
   return { low: null, high: null };
 }
 
+// Retry wrapper: the Saudi Exchange portal is intermittently slow, so a
+// single slow load shouldn't fail the whole run. Try a couple of times and
+// only report the last error if every attempt fails.
 export async function scrapeMarketData(): Promise<ScrapeResult> {
+  const MAX_ATTEMPTS = 2;
+  let last: ScrapeResult = { success: false, records: [], error: "No attempts run" };
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    last = await attemptScrape(attempt);
+    if (last.success) return last;
+    console.warn(`[Scraper] Attempt ${attempt}/${MAX_ATTEMPTS} failed: ${last.error}`);
+    if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 1500));
+  }
+  return last;
+}
+
+async function attemptScrape(attempt: number): Promise<ScrapeResult> {
   let browser;
   try {
     browser = await getBrowser();
@@ -112,15 +127,37 @@ export async function scrapeMarketData(): Promise<ScrapeResult> {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     );
 
-    console.log("[Scraper] Navigating to market watch page...");
-    await page.goto(MARKET_WATCH_URL, { waitUntil: "networkidle2", timeout: 45000 });
+    console.log(`[Scraper] Attempt ${attempt}: navigating to market watch page...`);
+    // Use domcontentloaded — the portal has continuous background network
+    // activity, so "networkidle2" often never settles and times out.
+    await page.goto(MARKET_WATCH_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    // Wait for the specific table
+    // Wait for the table element to appear.
     console.log("[Scraper] Waiting for #marketWatchTable1...");
     await page.waitForSelector("#marketWatchTable1 tbody tr td", { timeout: 20000 });
 
-    // Give it a moment for all rows to render
-    await new Promise((r) => setTimeout(r, 2000));
+    // The table is populated asynchronously — wait until it actually holds a
+    // realistic number of data rows (>= 50 rows with >= 10 cells) rather than
+    // relying on a fixed sleep, which scrapes an empty table when the site is
+    // slow. Falls through after the timeout so we still try to parse whatever
+    // rendered.
+    try {
+      await page.waitForFunction(
+        () => {
+          const table = document.querySelector("#marketWatchTable1");
+          if (!table) return false;
+          const rows = Array.from(table.querySelectorAll("tbody tr")).filter(
+            (r) => r.querySelectorAll("td").length >= 10
+          );
+          return rows.length >= 50;
+        },
+        { timeout: 15000, polling: 500 }
+      );
+    } catch {
+      console.warn("[Scraper] Data-row wait timed out; parsing whatever rendered.");
+    }
+    // Small settle for the last rows to paint.
+    await new Promise((r) => setTimeout(r, 1000));
 
     // Extract all rows from #marketWatchTable1
     console.log("[Scraper] Extracting table data...");

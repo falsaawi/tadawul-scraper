@@ -3,8 +3,10 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// Cloudflare D1 (SQLite). Schema is applied to D1 via wrangler migrations
+// generated from `prisma migrate diff` — not `prisma db push`.
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model ScrapeSession {
@@ -67,7 +69,7 @@ model CompanyProfile {
   symbol      String   @unique
   companyName String
   sector      String?
-  details     Json?
+  details     String?  // JSON string (was Json on Postgres)
   scrapedAt   DateTime @default(now())
 
   announcements    Announcement[]
@@ -132,7 +134,7 @@ model FinancialStatement {
   symbol    String
   period    String  // "2025-12-31", "2025-09-30", etc.
   type      String  // "annual" or "quarterly"
-  data      Json    // { "Total Assets": "2,551,964,000", ... }
+  data      String  // JSON string: { "Total Assets": "2,551,964,000", ... }
   scrapedAt DateTime @default(now())
 
   @@unique([symbol, period, type])
@@ -301,7 +303,7 @@ model InvestmentTransaction {
   entityId   String?
   action     String   // 'upload' | 'update'
   summary    String?
-  changes    Json     // { field: { from, to } } for updates, { counts: {...} } for uploads
+  changes    String   // JSON string: { field: { from, to } } or { counts: {...} }
 
   @@index([createdAt])
   @@index([entityType, entityId])

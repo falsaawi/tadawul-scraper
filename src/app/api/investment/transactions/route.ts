@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   return NextResponse.json({
-    rows,
+    rows: rows.map((r) => ({ ...r, changes: r.changes ? JSON.parse(r.changes) : {} })),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
 }

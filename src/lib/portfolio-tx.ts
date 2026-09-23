@@ -24,7 +24,7 @@ export async function logTransaction(
         entityType,
         action,
         // Prisma's typed Json column will reject `undefined`; coerce.
-        changes: JSON.parse(JSON.stringify(changes)),
+        changes: JSON.stringify(changes),
         entityId: options.entityId ?? null,
         summary: options.summary ?? null,
       },

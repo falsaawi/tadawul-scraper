@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         data: {
           companyName: data.companyName || stockRecord?.companyName || symbol,
           sector: data.sector,
-          details: data.details,
+          details: data.details ? JSON.stringify(data.details) : null,
           scrapedAt: new Date(),
         },
       });
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         symbol,
         companyName: data.companyName || stockRecord?.companyName || symbol,
         sector: data.sector,
-        details: data.details,
+        details: data.details ? JSON.stringify(data.details) : null,
         announcements: { create: data.announcements },
         dividends: { create: data.dividends },
         boardMembers: { create: data.boardMembers },

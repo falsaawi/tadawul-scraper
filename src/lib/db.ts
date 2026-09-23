@@ -1,24 +1,26 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
+import { PrismaD1 } from "@prisma/adapter-d1";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+// On Cloudflare Workers the D1 binding lives on the request-scoped env, so the
+// Prisma client can't be built at module load. We resolve it lazily on first
+// use and memoize it per isolate (the DB binding is stable within a worker
+// instance). A Proxy keeps the existing `import { prisma }` call sites working
+// unchanged across the app.
+let client: PrismaClient | undefined;
 
-function createPrismaClient() {
-  // Prefer unpooled URL (no channel_binding issues)
-  const connectionString =
-    process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error("DATABASE_URL environment variable is not set");
-  }
-
-  const pool = new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } });
-  const adapter = new PrismaPg(pool);
-
-  return new PrismaClient({ adapter });
+function resolveClient(): PrismaClient {
+  if (client) return client;
+  const { env } = getCloudflareContext();
+  const adapter = new PrismaD1(env.DB);
+  client = new PrismaClient({ adapter });
+  return client;
 }
 
-export const prisma = globalForPrisma.prisma || createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const c = resolveClient();
+    const value = Reflect.get(c as object, prop, receiver);
+    return typeof value === "function" ? value.bind(c) : value;
+  },
+});

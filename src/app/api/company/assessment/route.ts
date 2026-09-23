@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   const week52Low = latestStock.week52Low || 0;
 
   // --- VALUATION ---
-  const latestAnnual = annuals[0]?.data as Record<string, unknown> | null;
+  const latestAnnual = annuals[0]?.data ? (JSON.parse(annuals[0].data) as Record<string, unknown>) : null;
   const isData = (latestAnnual?.incomeStatement || {}) as Record<string, string>;
   const bsData = (latestAnnual?.balanceSheet || {}) as Record<string, string>;
 
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
   // --- GROWTH ---
   const growthYears: Array<{ period: string; revenue: number | null; netProfit: number | null; eps: number | null }> = [];
   for (const a of annuals) {
-    const d = a.data as Record<string, unknown>;
+    const d = JSON.parse(a.data) as Record<string, unknown>;
     const is2 = (d?.incomeStatement || {}) as Record<string, string>;
     growthYears.push({
       period: a.period,

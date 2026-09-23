@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Company not found. Scrape it first." }, { status: 404 });
     }
 
-    return NextResponse.json(profile);
+    return NextResponse.json({ ...profile, details: profile.details ? JSON.parse(profile.details) : null });
   }
 
   // Filter by sector

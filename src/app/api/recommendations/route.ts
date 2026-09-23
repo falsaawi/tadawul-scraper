@@ -119,7 +119,7 @@ export async function GET() {
     const latest = fins[0];
     if (!latest) continue;
 
-    const data = latest.data as Record<string, unknown>;
+    const data = JSON.parse(latest.data) as Record<string, unknown>;
     const isData = (data?.incomeStatement || {}) as Record<string, string>;
     const bsData = (data?.balanceSheet || {}) as Record<string, string>;
 
@@ -139,7 +139,7 @@ export async function GET() {
 
     let earningsGrowth: number | null = null;
     if (fins.length >= 2) {
-      const prevData = fins[1].data as Record<string, unknown>;
+      const prevData = JSON.parse(fins[1].data) as Record<string, unknown>;
       const prevIs = (prevData?.incomeStatement || {}) as Record<string, string>;
       const prevNet = parseVal(prevIs["Net Profit (Loss) Attributable to Shareholders of the Issuer"]);
       if (prevNet && prevNet > 0 && netProfit) {

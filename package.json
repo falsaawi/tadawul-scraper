@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push --accept-data-loss && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
@@ -15,10 +15,12 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare deploy",
-    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "db:migrate:d1": "wrangler d1 migrations apply tadawul --remote",
+    "db:migrate:d1:local": "wrangler d1 migrations apply tadawul --local"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.6.0",
+    "@prisma/adapter-d1": "^7.10.0",
     "@prisma/client": "^7.6.0",
     "@sparticuz/chromium-min": "^143.0.4",
     "class-variance-authority": "^0.7.1",
@@ -27,7 +29,6 @@
     "lucide-react": "^1.7.0",
     "next": "^16.3.6",
     "pdfjs-dist": "^4.7.76",
-    "pg": "^8.20.0",
     "puppeteer-core": "^24.40.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -37,10 +38,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260923.1",
     "@opennextjs/cloudflare": "^1.20.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",

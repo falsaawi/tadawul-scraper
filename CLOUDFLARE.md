@@ -52,3 +52,22 @@ npm run cf:deploy                            # opennextjs-cloudflare build && de
   deployment stays live and untouched until you cut over DNS.
 - `worker.ts` adds the cron `scheduled()` handler (Cloudflare Cron Triggers
   in wrangler.jsonc) — replaces the Vercel crons.
+
+## Gotchas discovered during the migration
+
+- **Prisma is pinned to 6.19.x — do not upgrade to 7.x.** Prisma 7's rust-free
+  client compiles its query-compiler WASM from bytes at runtime
+  (`new WebAssembly.Module(bytes)`), which Cloudflare Workers forbids
+  ("Wasm code generation disallowed by embedder", prisma/prisma#28657). The
+  6.19 `prisma-client-js` client loads the query-engine WASM as a static module
+  import (`import('./query_engine_bg.wasm')`), which workerd allows.
+- **Keep `@prisma/client` / `.prisma/client` in `serverExternalPackages`**
+  (next.config.ts). Otherwise Next's turbopack build inlines the engine WASM as
+  base64 and re-introduces the runtime-compile path. Left external, the `.wasm`
+  import survives to OpenNext/wrangler, which bundle it as a CompiledWasm module.
+- **Cloudflare cron day-of-week is nonstandard: 1 = Sunday .. 7 = Saturday.**
+  Riyadh's Sun–Thu week is `SUN-THU` (or `1-5`), NOT `0-4` — `0` is rejected
+  with "invalid cron string" [code 10100].
+- Raw SQL must be SQLite, not Postgres. `SELECT DISTINCT ON (...)` is not
+  supported; use a `ROW_NUMBER() OVER (PARTITION BY ...)` subquery instead
+  (see src/app/api/recommendations/route.ts).

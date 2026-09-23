@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Unused at runtime (the D1 driver adapter supplies the connection); this
+    // only satisfies the CLI for schema/migration tooling.
+    url: process.env["DATABASE_URL"] ?? "file:./dev.db",
   },
 });

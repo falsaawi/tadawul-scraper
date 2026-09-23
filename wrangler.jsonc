@@ -17,10 +17,12 @@
   // trading hours (Sun-Thu ~10:00-15:00 = 07:00-12:00 UTC), plus the daily
   // historical backfill. The Worker's scheduled() handler dispatches to the
   // cron API routes (still guarded by CRON_SECRET).
+  // NOTE: Cloudflare's day-of-week is nonstandard — 1=Sunday .. 7=Saturday —
+  // so Riyadh's Sun-Thu trading week is written as SUN-THU (not 0-4).
   "triggers": {
     "crons": [
-      "7,12,17,22,27,32,37,42,47,52,57 7-12 * * 0-4",
-      "0 13 * * 0-4"
+      "*/5 7-12 * * SUN-THU",
+      "0 13 * * SUN-THU"
     ]
   },
 

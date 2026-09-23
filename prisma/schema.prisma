@@ -1,12 +1,19 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  // Prisma 6.19 (not 7): the rust-free query-compiler client that Prisma 7
+  // emits compiles its WASM from bytes at runtime, which Cloudflare Workers
+  // forbids ("Wasm code generation disallowed by embedder", prisma/prisma#28657).
+  // The 6.x `prisma-client-js` client loads the query-engine WASM as a static
+  // module import instead, which workerd allows. driverAdapters is GA in 6.19.
+  provider = "prisma-client-js"
 }
 
 // Cloudflare D1 (SQLite). Schema is applied to D1 via wrangler migrations
 // generated from `prisma migrate diff` — not `prisma db push`.
 datasource db {
   provider = "sqlite"
+  // Unused at runtime: the D1 driver adapter (PrismaD1) supplies the connection.
+  // Prisma 6.x's schema validator still requires a url to be present.
+  url      = "file:./dev.db"
 }
 
 model ScrapeSession {

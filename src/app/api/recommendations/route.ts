@@ -91,10 +91,15 @@ export async function GET() {
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
   const oneYearAgoStr = oneYearAgo.toISOString().split("T")[0];
+  // SQLite (D1) has no `DISTINCT ON`; use a window function to take the most
+  // recent close on/before the cutoff for each symbol.
   const oldPrices = await prisma.$queryRaw<Array<{ symbol: string; close: number | null }>>`
-    SELECT DISTINCT ON (symbol) symbol, close FROM "HistoricalPrice"
-    WHERE date <= ${oneYearAgoStr}
-    ORDER BY symbol, date DESC
+    SELECT symbol, close FROM (
+      SELECT symbol, close,
+             ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+      FROM "HistoricalPrice"
+      WHERE date <= ${oneYearAgoStr}
+    ) WHERE rn = 1
   `;
   const oldPriceMap = new Map<string, number>();
   for (const p of oldPrices) if (p.close != null) oldPriceMap.set(p.symbol, p.close);

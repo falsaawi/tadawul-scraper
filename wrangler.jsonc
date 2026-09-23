@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tadawul-scraper",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+
+  // --- Scheduled scrape (replaces vercel.json crons) ---
+  // Cloudflare cron runs in UTC. Market watch every 5 min during Riyadh
+  // trading hours (Sun-Thu ~10:00-15:00 = 07:00-12:00 UTC), plus the daily
+  // historical backfill. The Worker's scheduled() handler dispatches to the
+  // cron API routes (still guarded by CRON_SECRET).
+  "triggers": {
+    "crons": [
+      "7,12,17,22,27,32,37,42,47,52,57 7-12 * * 0-4",
+      "0 13 * * 0-4"
+    ]
+  }
+
+  // --- Bindings to add in later phases ---
+  // Browser Rendering (scraper rewrite):
+  //   "browser": { "binding": "BROWSER" }
+  // D1 database (data migration phase):
+  //   "d1_databases": [
+  //     { "binding": "DB", "database_name": "tadawul", "database_id": "<id>" }
+  //   ]
+  //
+  // Secrets are set with `wrangler secret put <NAME>` (not in this file):
+  //   DATABASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AUTH_SECRET, CRON_SECRET
+}

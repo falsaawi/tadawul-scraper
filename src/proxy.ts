@@ -39,5 +39,5 @@ export const config = {
   // Run on every request EXCEPT static assets, Next internals, the favicon,
   // cron endpoints (Vercel cron — has its own bearer-token auth), and the
   // auth endpoints themselves (login/logout API).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/cron|api/auth).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/cron|api/auth|api/admin).*)"],
 };

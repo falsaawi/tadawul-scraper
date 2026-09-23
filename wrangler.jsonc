@@ -32,7 +32,7 @@
     {
       "binding": "DB",
       "database_name": "tadawul",
-      "database_id": "REPLACE_AFTER_D1_CREATE",
+      "database_id": "363f93fe-de74-4ac2-b7e0-8d033ec8c617",
       "migrations_dir": "migrations"
     }
   ]

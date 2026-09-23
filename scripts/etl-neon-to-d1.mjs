@@ -25,7 +25,7 @@ if (!NEON_URL) {
 }
 const args = process.argv.slice(2);
 const generateOnly = args.includes("--generate-only");
-const CHUNK = Number(args[args.indexOf("--chunk") + 1]) || 4000;
+const CHUNK = Number(args[args.indexOf("--chunk") + 1]) || 10000;
 const DB_NAME = args[args.indexOf("--db") + 1] || "tadawul";
 const OUT = path.join("scripts", "etl-out");
 
@@ -124,8 +124,12 @@ async function run() {
       continue;
     }
     const colList = cols.map((c) => `"${c.name}"`).join(",");
-    // Keyset pagination on the string `id` PK — avoids slow OFFSET scans on
-    // the large tables (StockRecord ~900k, HistoricalPrice ~730k).
+    // Each INSERT statement holds ROWS_PER_STMT rows (kept well under D1's
+    // ~100 KB per-statement cap); many statements are packed into one file so
+    // a single `wrangler d1 execute` applies CHUNK rows at once. Keyset
+    // pagination on the string `id` PK avoids slow OFFSET scans on the large
+    // tables (StockRecord ~900k, HistoricalPrice ~730k).
+    const ROWS_PER_STMT = 200;
     let lastId = "";
     let fileIdx = 0;
     let done = 0;
@@ -135,15 +139,16 @@ async function run() {
         [lastId]
       );
       if (rows.length === 0) break;
-      const values = rows
-        .map(
-          (row) =>
-            "(" + cols.map((c) => fmt(row[c.name], c.type)).join(",") + ")"
-        )
-        .join(",\n");
-      const stmt = `INSERT INTO "${table}" (${colList}) VALUES\n${values};\n`;
+      const parts = ["PRAGMA defer_foreign_keys=TRUE;"];
+      for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
+        const slice = rows.slice(i, i + ROWS_PER_STMT);
+        const values = slice
+          .map((row) => "(" + cols.map((c) => fmt(row[c.name], c.type)).join(",") + ")")
+          .join(",");
+        parts.push(`INSERT INTO "${table}" (${colList}) VALUES ${values};`);
+      }
       const file = path.join(OUT, `${String(TABLES.indexOf(table)).padStart(2, "0")}_${table}_${String(fileIdx).padStart(4, "0")}.sql`);
-      fs.writeFileSync(file, "PRAGMA defer_foreign_keys=TRUE;\n" + stmt);
+      fs.writeFileSync(file, parts.join("\n") + "\n");
       applyCmds.push(
         `npx wrangler d1 execute ${DB_NAME} --remote --file="${file}" --yes`
       );

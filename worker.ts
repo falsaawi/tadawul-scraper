@@ -30,9 +30,11 @@ export default {
     ctx: ExecutionContext
   ): Promise<void> {
     // The daily 13:00 UTC trigger runs the historical backfill; every other
-    // trigger runs the market-watch scrape.
-    const path =
-      event.cron === "0 13 * * 0-4" ? "/api/cron/historical" : "/api/cron/scrape";
+    // trigger (the */5 market-watch) runs the scrape. Match on the "minute 0,
+    // hour 13" prefix so this stays correct if the day-of-week part changes.
+    const path = event.cron.startsWith("0 13 ")
+      ? "/api/cron/historical"
+      : "/api/cron/scrape";
     const req = new Request(`https://cron.internal${path}`, {
       headers: { authorization: `Bearer ${env.CRON_SECRET ?? ""}` },
     });

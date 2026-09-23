@@ -7,8 +7,11 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret in production
-  if (process.env.VERCEL) {
+  // Require the cron secret whenever one is configured. This route is excluded
+  // from the login gate (so the scheduler can reach it), so the bearer is its
+  // only protection. Enforce it on every platform — on Cloudflare Workers
+  // `process.env.VERCEL` is undefined, which previously left it wide open.
+  if (process.env.CRON_SECRET) {
     const authHeader = request.headers.get("authorization");
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

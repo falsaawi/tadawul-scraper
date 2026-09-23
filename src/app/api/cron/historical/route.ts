@@ -86,7 +86,10 @@ async function batchInsertRaw(rows: Row[]) {
 }
 
 export async function GET(request: NextRequest) {
-  if (process.env.VERCEL) {
+  // Require the cron secret whenever one is configured (see cron/scrape route):
+  // this endpoint bypasses the login gate, so the bearer is its only guard.
+  // Must run on every platform — `process.env.VERCEL` is undefined on Workers.
+  if (process.env.CRON_SECRET) {
     const auth = request.headers.get("authorization");
     if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

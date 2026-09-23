@@ -124,12 +124,13 @@ async function run() {
       continue;
     }
     const colList = cols.map((c) => `"${c.name}"`).join(",");
-    // Each INSERT statement holds ROWS_PER_STMT rows (kept well under D1's
-    // ~100 KB per-statement cap); many statements are packed into one file so
-    // a single `wrangler d1 execute` applies CHUNK rows at once. Keyset
-    // pagination on the string `id` PK avoids slow OFFSET scans on the large
-    // tables (StockRecord ~900k, HistoricalPrice ~730k).
-    const ROWS_PER_STMT = 200;
+    const insertPrefix = `INSERT OR IGNORE INTO "${table}" (${colList}) VALUES `;
+    // Statements are byte-bounded (flush before ~50 KB) so wide-JSON tables
+    // (FinancialStatement, CompanyProfile) stay under D1's statement-size cap,
+    // while narrow tables still pack many rows per statement. INSERT OR IGNORE
+    // makes re-runs idempotent. Keyset pagination on the `id` PK avoids slow
+    // OFFSET scans on the large tables.
+    const MAX_STMT_BYTES = 50000;
     let lastId = "";
     let fileIdx = 0;
     let done = 0;
@@ -140,13 +141,22 @@ async function run() {
       );
       if (rows.length === 0) break;
       const parts = ["PRAGMA defer_foreign_keys=TRUE;"];
-      for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
-        const slice = rows.slice(i, i + ROWS_PER_STMT);
-        const values = slice
-          .map((row) => "(" + cols.map((c) => fmt(row[c.name], c.type)).join(",") + ")")
-          .join(",");
-        parts.push(`INSERT INTO "${table}" (${colList}) VALUES ${values};`);
+      let buf = [];
+      let bufLen = insertPrefix.length;
+      const flush = () => {
+        if (buf.length) {
+          parts.push(insertPrefix + buf.join(",") + ";");
+          buf = [];
+          bufLen = insertPrefix.length;
+        }
+      };
+      for (const row of rows) {
+        const tuple = "(" + cols.map((c) => fmt(row[c.name], c.type)).join(",") + ")";
+        if (buf.length && bufLen + tuple.length + 1 > MAX_STMT_BYTES) flush();
+        buf.push(tuple);
+        bufLen += tuple.length + 1;
       }
+      flush();
       const file = path.join(OUT, `${String(TABLES.indexOf(table)).padStart(2, "0")}_${table}_${String(fileIdx).padStart(4, "0")}.sql`);
       fs.writeFileSync(file, parts.join("\n") + "\n");
       applyCmds.push(

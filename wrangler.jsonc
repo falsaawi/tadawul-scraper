@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tadawul-scraper",
-  "main": ".open-next/worker.js",
+  "main": "worker.ts",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -22,16 +22,21 @@
       "7,12,17,22,27,32,37,42,47,52,57 7-12 * * 0-4",
       "0 13 * * 0-4"
     ]
-  }
+  },
 
-  // --- Bindings to add in later phases ---
-  // Browser Rendering (scraper rewrite):
-  //   "browser": { "binding": "BROWSER" }
-  // D1 database (data migration phase):
-  //   "d1_databases": [
-  //     { "binding": "DB", "database_name": "tadawul", "database_id": "<id>" }
-  //   ]
-  //
+  // Browser Rendering — used by the scraper (src/lib/browser.ts).
+  "browser": { "binding": "BROWSER" },
+
+  // D1 database. database_id is filled in after `wrangler d1 create tadawul`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tadawul",
+      "database_id": "REPLACE_AFTER_D1_CREATE",
+      "migrations_dir": "migrations"
+    }
+  ]
+
   // Secrets are set with `wrangler secret put <NAME>` (not in this file):
-  //   DATABASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, AUTH_SECRET, CRON_SECRET
+  //   ADMIN_USERNAME, ADMIN_PASSWORD, AUTH_SECRET, CRON_SECRET
 }

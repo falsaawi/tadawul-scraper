@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium-min", "pg", "pdfjs-dist"],
+  // @cloudflare/puppeteer talks to the Browser Rendering binding; keep it out
+  // of the server bundle.
+  serverExternalPackages: ["@cloudflare/puppeteer"],
 };
 
 export default nextConfig;

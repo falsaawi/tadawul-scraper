@@ -105,9 +105,11 @@ export function computeBaseMetrics(
   const ytm = ytmApprox(price, input.couponRate, years);
   const marketYield = input.instrumentYield ?? ytm ?? currentYield;
 
+  // Bid price < ask price, and price moves inversely to yield, so bid yield is
+  // the higher one: the bid/ask yield spread is bidYield - askYield (>= 0).
   const bidAskSpreadBps =
     input.askYield != null && input.bidYield != null
-      ? (input.askYield - input.bidYield) * 100
+      ? (input.bidYield - input.askYield) * 100
       : null;
 
   // Liquidity from the last 30 history points.

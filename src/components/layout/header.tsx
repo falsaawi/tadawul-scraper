@@ -97,6 +97,12 @@ export function Header() {
               Recommendations
             </Link>
             <Link
+              href="/sukuk"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              Sukuk
+            </Link>
+            <Link
               href="/portfolio"
               className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >

@@ -20,6 +20,7 @@
     "db:migrate:d1:local": "wrangler d1 migrations apply tadawul --local"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@cloudflare/puppeteer": "^1.4.0",
     "@prisma/adapter-d1": "6.19.3",
     "@prisma/client": "6.19.3",

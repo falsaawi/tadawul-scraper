@@ -33,10 +33,12 @@ export default {
     // correct if the day-of-week part changes):
     //   0 13 * * ...  -> equity historical backfill
     //   0 14 * * ...  -> sukuk board + historical trades (daily incremental)
+    //   0 15 * * ...  -> sukuk universe analysis (Claude commentary)
     //   */5 ...       -> equity market-watch scrape
     let path = "/api/cron/scrape";
     if (event.cron.startsWith("0 13 ")) path = "/api/cron/historical";
     else if (event.cron.startsWith("0 14 ")) path = "/api/cron/sukuk?mode=daily";
+    else if (event.cron.startsWith("0 15 ")) path = "/api/cron/sukuk-analyze";
     const req = new Request(`https://cron.internal${path}`, {
       headers: { authorization: `Bearer ${env.CRON_SECRET ?? ""}` },
     });

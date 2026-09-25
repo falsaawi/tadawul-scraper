@@ -23,7 +23,8 @@
     "crons": [
       "*/5 7-12 * * SUN-THU",
       "0 13 * * SUN-THU",
-      "0 14 * * SUN-THU"
+      "0 14 * * SUN-THU",
+      "0 15 * * SUN-THU"
     ]
   },
 

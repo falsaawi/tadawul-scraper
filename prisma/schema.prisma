@@ -414,3 +414,22 @@ model SukukHistoricalPrice {
   @@index([code])
   @@index([date])
 }
+
+// LLM analysis output (Claude). scope 'instrument' = one sukuk; 'universe' =
+// daily market commentary over all instruments. `metrics` and `data` hold JSON.
+model SukukAnalysis {
+  id        String   @id @default(cuid())
+  scope     String // 'instrument' | 'universe'
+  code      String? // set when scope='instrument'
+  createdAt DateTime @default(now())
+  model     String
+  rating    String? // e.g. 'Attractive' | 'Fair' | 'Rich' | 'Avoid'
+  score     Float?
+  strategy  String? // suggested trading method (headline)
+  summary   String? // short narrative
+  metrics   String? // JSON of the computed metrics fed to the model
+  data      String // full JSON payload (verdict, rationale, risks, disclaimer)
+
+  @@index([scope, createdAt])
+  @@index([code, createdAt])
+}

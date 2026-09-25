@@ -355,3 +355,62 @@ model DividendPayment {
   @@index([symbol])
   @@index([distDate])
 }
+
+// --- Sukuk & Bonds market (saudiexchange.sa sukuk-market-watch) ---
+
+// One row per instrument: reference data from the sukuk market-watch board.
+// Upserted on `code` (rarely changes).
+model SukukInstrument {
+  id              String   @id @default(cuid())
+  code            String   @unique // Tadawul code, e.g. "5379"
+  name            String?
+  isin            String?
+  couponType      String? // "Fixed" | "Floating"
+  couponRate      Float?
+  maturityDate    String?
+  parValue        Float?
+  issuanceAmount  Float?
+  currency        String?
+  couponFrequency String?
+  dayCount        String?
+  updatedAt       DateTime @updatedAt
+
+  @@index([isin])
+}
+
+// Live board snapshot captured per scrape run (time series of quotes).
+model SukukQuote {
+  id              String   @id @default(cuid())
+  code            String
+  scrapedAt       DateTime @default(now())
+  instrumentYield Float?
+  bidYield        Float?
+  askYield        Float?
+  lastPrice       Float?
+  bidPrice        Float?
+  askPrice        Float?
+
+  @@index([code, scrapedAt])
+  @@index([scrapedAt])
+}
+
+// Daily historical trades per instrument (populateCompanyDetails, market=SUKUK).
+model SukukHistoricalPrice {
+  id        String @id @default(cuid())
+  code      String
+  date      String // "YYYY-MM-DD"
+  open      Float?
+  high      Float?
+  low       Float?
+  close     Float?
+  change    Float?
+  changePct Float?
+  volume    Float? // volumeTraded (can be fractional)
+  value     Float? // turnOver
+  trades    Int?
+  yield     Float? // lastYield
+
+  @@unique([code, date])
+  @@index([code])
+  @@index([date])
+}

@@ -29,12 +29,14 @@ export default {
     env: { CRON_SECRET?: string },
     ctx: ExecutionContext
   ): Promise<void> {
-    // The daily 13:00 UTC trigger runs the historical backfill; every other
-    // trigger (the */5 market-watch) runs the scrape. Match on the "minute 0,
-    // hour 13" prefix so this stays correct if the day-of-week part changes.
-    const path = event.cron.startsWith("0 13 ")
-      ? "/api/cron/historical"
-      : "/api/cron/scrape";
+    // Dispatch by schedule (matched on the "minute hour" prefix so it stays
+    // correct if the day-of-week part changes):
+    //   0 13 * * ...  -> equity historical backfill
+    //   0 14 * * ...  -> sukuk board + historical trades (daily incremental)
+    //   */5 ...       -> equity market-watch scrape
+    let path = "/api/cron/scrape";
+    if (event.cron.startsWith("0 13 ")) path = "/api/cron/historical";
+    else if (event.cron.startsWith("0 14 ")) path = "/api/cron/sukuk?mode=daily";
     const req = new Request(`https://cron.internal${path}`, {
       headers: { authorization: `Bearer ${env.CRON_SECRET ?? ""}` },
     });

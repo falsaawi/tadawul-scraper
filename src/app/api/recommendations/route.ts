@@ -221,5 +221,40 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({ assessments, total: assessments.length });
+  // Attach the latest AI analysis (Claude) per symbol.
+  const aiRows = await prisma.$queryRawUnsafe<
+    Array<{
+      symbol: string;
+      rating: string | null;
+      recommendation: string | null;
+      priceTarget: number | null;
+      upside: number | null;
+      score: number | null;
+      createdAt: string;
+    }>
+  >(
+    `SELECT a.symbol, a.rating, a.recommendation, a.priceTarget, a.upside, a.score, a.createdAt
+     FROM "StockAnalysis" a
+     JOIN (SELECT symbol, MAX(createdAt) AS mx FROM "StockAnalysis" GROUP BY symbol) t
+       ON t.symbol = a.symbol AND t.mx = a.createdAt`
+  );
+  const aiBySymbol = new Map(aiRows.map((r) => [r.symbol, r]));
+  const withAi = assessments.map((a) => {
+    const ai = aiBySymbol.get(a.symbol);
+    return {
+      ...a,
+      aiRating: ai?.rating ?? null,
+      aiRecommendation: ai?.recommendation ?? null,
+      aiTarget: ai?.priceTarget ?? null,
+      aiUpside: ai?.upside ?? null,
+      aiScore: ai?.score ?? null,
+      aiAt: ai?.createdAt ?? null,
+    };
+  });
+
+  return NextResponse.json({
+    assessments: withAi,
+    total: withAi.length,
+    aiCount: aiRows.length,
+  });
 }

@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
         score: typeof analysis.score === "number" ? analysis.score : null,
         recommendation: analysis.recommendation ?? null,
         targetView: analysis.valuation ?? null,
+        priceTarget:
+          typeof analysis.priceTarget === "number" ? analysis.priceTarget : null,
+        upside: typeof analysis.upside === "number" ? analysis.upside : null,
         summary: analysis.summary ?? null,
         metrics: JSON.stringify(metrics),
         data: JSON.stringify(analysis),

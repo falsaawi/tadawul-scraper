@@ -44,6 +44,8 @@ export interface StockAnalysis {
   score: number | null; // 0-100
   recommendation: string; // short action headline
   valuation: string; // Cheap | Fair | Expensive + one line
+  priceTarget: number | null; // 12-month fair-value target (SAR)
+  upside: number | null; // % vs current price
   summary: string;
   strengths: string[];
   risks: string[];
@@ -65,6 +67,8 @@ export async function analyzeStock(
   "score": <integer 0-100, higher = more attractive risk-adjusted>,
   "recommendation": "<one short action headline>",
   "valuation": "<Cheap | Fair | Expensive> — <one line why>",
+  "priceTarget": <number: a 12-month fair-value price target in SAR, derived from the metrics (e.g. a justified P/E or P/B on forward earnings/book); null only if there is genuinely no basis>,
+  "upside": <number: percentage change from currentPrice to priceTarget>,
   "summary": "<3-5 sentence narrative: business quality, growth, profitability, valuation>",
   "strengths": ["<short bullet>", "..."],
   "risks": ["<short bullet>", "..."],

@@ -425,6 +425,8 @@ model StockAnalysis {
   score          Float?
   recommendation String? // short action headline
   targetView     String? // e.g. valuation stance
+  priceTarget    Float? // 12-month fair-value target (SAR)
+  upside         Float? // % vs current price
   summary        String?
   metrics        String? // JSON of the computed fundamentals
   data           String // full JSON payload

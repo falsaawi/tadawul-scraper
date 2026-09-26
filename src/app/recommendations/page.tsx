@@ -26,6 +26,29 @@ interface Assessment {
   targetPrice: number;
   upside: number;
   totalReturnPotential: number;
+  aiRating: string | null;
+  aiRecommendation: string | null;
+  aiTarget: number | null;
+  aiUpside: number | null;
+  aiScore: number | null;
+  aiAt: string | null;
+}
+
+function aiColor(r: string | null): string {
+  switch ((r || "").toLowerCase()) {
+    case "strong buy":
+      return "green";
+    case "buy":
+      return "lime";
+    case "hold":
+      return "yellow";
+    case "reduce":
+      return "orange";
+    case "sell":
+      return "red";
+    default:
+      return "gray";
+  }
 }
 
 const SECTORS = [
@@ -238,6 +261,9 @@ export default function RecommendationsPage() {
                     <SortHeader field="companyName" className="text-left">Company</SortHeader>
                     <SortHeader field="sector" className="text-left">Sector</SortHeader>
                     <SortHeader field="rating" className="text-left">Rating</SortHeader>
+                    <SortHeader field="aiScore" className="text-left">AI Rec</SortHeader>
+                    <SortHeader field="aiTarget">AI Target</SortHeader>
+                    <SortHeader field="aiUpside">AI Upside</SortHeader>
                     <SortHeader field="score">Score</SortHeader>
                     <SortHeader field="currentPrice">Price</SortHeader>
                     <SortHeader field="targetPrice">Target</SortHeader>
@@ -265,6 +291,17 @@ export default function RecommendationsPage() {
                       <td className="px-3 py-2 text-xs text-foreground max-w-[200px] truncate">{a.companyName}</td>
                       <td className="px-3 py-2 text-[10px] text-muted-foreground">{a.sector || "-"}</td>
                       <td className="px-3 py-2"><RatingBadge rating={a.rating} color={a.ratingColor} /></td>
+                      <td className="px-3 py-2" title={a.aiRecommendation || ""}>
+                        {a.aiRating ? (
+                          <RatingBadge rating={a.aiRating} color={aiColor(a.aiRating)} />
+                        ) : (
+                          <span className="text-muted-foreground/40 text-[10px]">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-right">{a.aiTarget != null ? fmt(a.aiTarget) : "-"}</td>
+                      <td className={`px-3 py-2 text-xs text-right font-medium ${(a.aiUpside ?? 0) > 0 ? "text-green-400" : (a.aiUpside ?? 0) < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                        {a.aiUpside != null ? (a.aiUpside > 0 ? "+" : "") + fmt(a.aiUpside, 1) + "%" : "-"}
+                      </td>
                       <td className="px-3 py-2 text-xs text-right font-medium">{a.score}</td>
                       <td className="px-3 py-2 text-xs text-right">{fmt(a.currentPrice)}</td>
                       <td className="px-3 py-2 text-xs text-right">{fmt(a.targetPrice)}</td>

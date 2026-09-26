@@ -415,6 +415,23 @@ model SukukHistoricalPrice {
   @@index([date])
 }
 
+// LLM analysis output (Claude) for an equity: fundamentals + recommendation.
+model StockAnalysis {
+  id             String   @id @default(cuid())
+  symbol         String
+  createdAt      DateTime @default(now())
+  model          String
+  rating         String? // 'Strong Buy' | 'Buy' | 'Hold' | 'Reduce' | 'Sell'
+  score          Float?
+  recommendation String? // short action headline
+  targetView     String? // e.g. valuation stance
+  summary        String?
+  metrics        String? // JSON of the computed fundamentals
+  data           String // full JSON payload
+
+  @@index([symbol, createdAt])
+}
+
 // LLM analysis output (Claude). scope 'instrument' = one sukuk; 'universe' =
 // daily market commentary over all instruments. `metrics` and `data` hold JSON.
 model SukukAnalysis {

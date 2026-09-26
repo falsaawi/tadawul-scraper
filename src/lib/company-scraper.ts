@@ -6,6 +6,13 @@ const PROFILE_URL_BASE =
 const DIVIDENDS_PAGE_URL =
   "https://www.saudiexchange.sa/wps/portal/saudiexchange/newsandreports/issuer-financial-calendars/dividends/!ut/p/z1/04_Sj9CPykssy0xPLMnMz0vMAfIjo8ziTR3NDIw8LAz8LTw8zA0C3bw9LTyDvAwMAoz1I4EKzBEK_H0DnQ3MDEyCQs3CXAwNvIz1g_Wj9KOSKoMrc5Pyc_QjjYAAJJKbWJSdWhJSWZDqnJGanK0f6asfTsioguzEpKq0SkcAIkCqoA!!/";
 
+export interface FinancialStatementData {
+  period: string; // "YYYY-MM-DD"
+  type: string; // "annual" | "quarterly"
+  // { unit, balanceSheet:{...}, incomeStatement:{...}, cashFlows:{...} }
+  data: Record<string, unknown>;
+}
+
 export interface CompanyProfileData {
   symbol: string;
   companyName: string;
@@ -28,6 +35,7 @@ export interface CompanyProfileData {
     sharesChange: string | null;
   }>;
   corporateActions: Array<{ title: string; date: string | null; details: string | null }>;
+  financials: FinancialStatementData[];
 }
 
 export async function scrapeCompanyProfile(symbol: string): Promise<CompanyProfileData> {
@@ -51,12 +59,14 @@ export async function scrapeCompanyProfile(symbol: string): Promise<CompanyProfi
         announcements: Array<{ title: string; date: string | null; category: string | null }>;
         boardMembers: Array<{ tradingDate: string | null; shareholder: string | null; designation: string | null; sharesHeld: string | null; sharesPrev: string | null; sharesChange: string | null }>;
         corporateActions: Array<{ title: string; date: string | null; details: string | null }>;
+        financials: Array<{ period: string; type: string; data: Record<string, unknown> }>;
       } = {
         companyName: "",
         details: {},
         announcements: [],
         boardMembers: [],
         corporateActions: [],
+        financials: [],
       };
 
       // Company name
@@ -137,6 +147,82 @@ export async function scrapeCompanyProfile(symbol: string): Promise<CompanyProfi
         });
       }
 
+      // Financial statements. The Financials section is one table with
+      // section-header rows ("Balance Sheet", "Statement of Income",
+      // "Cash Flows"), each followed by line-item rows across N period columns.
+      // Build { unit, balanceSheet, incomeStatement, cashFlows } per period,
+      // matching the stored schema. Negatives render shifted into an extra
+      // cell, so map positionally and skip blanks (never misassign a value).
+      type FinData = {
+        unit: string;
+        balanceSheet: Record<string, string>;
+        incomeStatement: Record<string, string>;
+        cashFlows: Record<string, string>;
+      };
+      const finByPeriod: Record<string, FinData> = {};
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+      const sectionMap: Record<string, keyof Omit<FinData, "unit">> = {
+        "balance sheet": "balanceSheet",
+        "statement of income": "incomeStatement",
+        "income statement": "incomeStatement",
+        "cash flows": "cashFlows",
+        "cash flow": "cashFlows",
+      };
+      const finContainers = document.querySelectorAll(
+        "#fullSummaryFinancial, #unifiedSummaryFinancial"
+      );
+      finContainers.forEach((container) => {
+        container.querySelectorAll("table").forEach((table) => {
+          let periods: (string | null)[] = [];
+          let section: keyof Omit<FinData, "unit"> | null = null;
+          table.querySelectorAll("tr").forEach((row) => {
+            const cells = Array.from(row.querySelectorAll("td, th")).map((c) =>
+              (c.textContent || "").replace(/\s+/g, " ").trim()
+            );
+            if (cells.length < 2) return;
+            const label = cells[0];
+            const rest = cells.slice(1);
+            const dateCount = rest.filter((c) => dateRe.test(c)).length;
+            // Section-header row: label is a section name and the rest are dates.
+            if (dateCount >= 1 && rest.every((c) => dateRe.test(c) || c === "")) {
+              periods = rest.map((c) => (dateRe.test(c) ? c : null));
+              const key = label.toLowerCase();
+              section = sectionMap[key] ?? section;
+              return;
+            }
+            if (!label || !section || periods.length === 0) return;
+            for (let i = 0; i < periods.length; i++) {
+              const p = periods[i];
+              if (!p) continue;
+              const v = cells[i + 1];
+              if (v === undefined || v === "" || v === "-") continue;
+              if (!finByPeriod[p])
+                finByPeriod[p] = {
+                  unit: "Thousands",
+                  balanceSheet: {},
+                  incomeStatement: {},
+                  cashFlows: {},
+                };
+              if (!(label in finByPeriod[p][section]))
+                finByPeriod[p][section][label] = v;
+            }
+          });
+        });
+      });
+      result.financials = Object.entries(finByPeriod)
+        .filter(
+          ([, d]) =>
+            Object.keys(d.balanceSheet).length +
+              Object.keys(d.incomeStatement).length +
+              Object.keys(d.cashFlows).length >
+            0
+        )
+        .map(([period, data]) => ({
+          period,
+          type: period.endsWith("-12-31") ? "annual" : "quarterly",
+          data: data as unknown as Record<string, unknown>,
+        }));
+
       return result;
     });
 
@@ -192,6 +278,7 @@ export async function scrapeCompanyProfile(symbol: string): Promise<CompanyProfi
       dividends,
       boardMembers: profileData.boardMembers,
       corporateActions: profileData.corporateActions,
+      financials: profileData.financials,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
